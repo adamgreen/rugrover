@@ -149,7 +149,7 @@ bumperMountDiameter = 3.0 + clearanceLoose;
 // Bumper mounting countersink hole size to allow access through caster mount block.
 bumperMountCountersinkDiameter = 6.0;
 // How far from the robot base should the nRF52DK PCB be mounted.
-nRF52DK_MountingHeight = 15.0;
+nRF52DK_MountingHeight = 8.0;
 // Diameter of the hole used to attach standoffs for the nRF52DK PCB.
 nRF52DK_MountingHoleDiameter = 3.0;
 // Diameter of hole in middle of base for pulling cables through.
@@ -171,6 +171,22 @@ batteryPackRidgeOutsideLength = 20.0;
 batteryPackRidgeWidth = 2.0;
 batteryPackRidgeHeight = batteryDiameter/4;
 batteryPackRidgeClearance = clearanceLoose;
+// How much larger should the diameter of the bumper skirt be than the chassis.
+bumperDiameterClearance = 4.0;
+// How thick should the bumper skirt be?
+// UNDONE: Will depend on slicer settings.
+bumperThickness = 0.3 * 4;
+// Thickness of the top of the  bumper skirt.
+bumperTopThickness = 2.0;
+// How far above the ground should the skirt be? Should be low enough to detect things that
+// could hit battery pack, motors, etc.
+bumperGroundClearance = 20.0;
+// Diameter of flexible bumper standoffs.
+bumperStandoffDiameter = 6.0;
+// How tall are the flexible bumper standoffs.
+bumperStandoffHeight = 38.0;
+// The amount of extra top on the bumper skirt there should be to cover the flexible standoffs.
+bumperTopClearance = 2.0;
 
 
 
@@ -196,6 +212,16 @@ wheelHeight = wheelDiameter/2 + wheelZOffset;
 casterZOffset = wheelHeight - casterTotalHeight;
 // Height of the casterMount.
 casterMountHeight = casterZOffset - baseThickness;
+// Inner diameter of the bumper skirt.
+bumperID = baseDiameter + bumperDiameterClearance;
+// Outer diameter of the bumper skirt.
+bumperOD = bumperID + 2*bumperThickness;
+// The Z offset where the bottom of the skirt should be.
+bumperZOffset = wheelHeight - bumperGroundClearance;
+// How tall should the bumper skirt be? Determined by ground clearance and standoff height.
+bumperHeight = wheelHeight-bumperGroundClearance+bumperStandoffHeight;
+// The diameter of the large hole in the top of the bumper skirt.
+bumperTopID = baseDiameter-bumperMountOffset*2-bumperStandoffDiameter-2*bumperTopClearance;
 
 
 
@@ -219,6 +245,8 @@ base();
         nRF52DK_MountingHoles(diameter=nRF52DK_MountingHoleDiameter*1.5, height=nRF52DK_MountingHeight);
     translate([0, batteryYOffset, baseThickness])
         batteryPack3_2();
+    flexibleBumperStandoffs();
+    bumperSkirt();
 }
 // Draw ground plane to see if all wheels fall on it.
 *translate([0, 0, wheelZOffset+wheelDiameter/2-0.001])
@@ -463,13 +491,20 @@ module cableHole() {
 
 // Location of holes to mount rubber standoffs for bumper skirt.
 module bumperMountHoles() {
-    for (i=bumperMountAngles)
-        rotate([0, 0, i])
-            translate([0, baseDiameter/2-bumperMountOffset, -0.001])
-                cylinder(h=baseThickness+0.002, d=bumperMountDiameter);
+    translate([0, 0, -0.001])
+        placeBumperMountHoles()
+            cylinder(h=baseThickness+0.002, d=bumperMountDiameter);
     // Need to countersink through the thick caster mount.
     translate([0, baseDiameter/2-bumperMountOffset, baseThickness-0.001])
         cylinder(h=casterMountHeight+0.002, d=bumperMountCountersinkDiameter);
+}
+
+// Rotates and offsets the bumper mounts/holes into the correct location.
+module placeBumperMountHoles() {
+    for (i=bumperMountAngles)
+        rotate([0, 0, i])
+            translate([0, baseDiameter/2-bumperMountOffset, 0])
+                children();
 }
 
 // Cutouts for straps used to hold battery pack in place.
@@ -510,6 +545,41 @@ module batteryPackOutsideRidge() {
     translate([0, yOffset, zOffset])
         rotate([0, 0, 90])
             roundedSlot(batteryPackRidgeWidth, batteryPackRidgeOutsideLength-batteryPackRidgeWidth, batteryPackRidgeHeight);
+}
+
+module flexibleBumperStandoffs() {
+    translate([0, 0, -bumperStandoffHeight])
+        placeBumperMountHoles()
+            cylinder(h=bumperStandoffHeight, d=bumperStandoffDiameter);
+}
+
+
+
+
+// Separate bumper skirt part that goes around the chassis.
+module bumperSkirt() {
+    bumperSkirtSides();
+    bumperSkirtTop();
+}
+
+module bumperSkirtSides() {
+    translate([0, 0, -bumperHeight/2+bumperZOffset]) {
+        difference() {
+            cylinder(h=bumperHeight, d=bumperOD, center=true);
+            cylinder(h=bumperHeight+0.002, d=bumperID, center=true);
+        }
+    }
+}
+
+module bumperSkirtTop() {
+    translate([0, 0, -bumperTopThickness/2-(bumperHeight-bumperZOffset)]) {
+        difference() {
+            cylinder(h=bumperTopThickness, d=bumperOD, center=true);
+            cylinder(h=bumperTopThickness+0.002, d=bumperTopID, center=true);
+            placeBumperMountHoles()
+                cylinder(h=bumperTopThickness+0.002, d=bumperMountDiameter, center=true);
+        }
+    }
 }
 
 

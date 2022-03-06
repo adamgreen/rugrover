@@ -52,8 +52,7 @@ Having recently reread the book, I thought it would be fun to build a comparable
 
 
 ## Mechanical Design
-When it comes to robot building, the mechanical portions are my weakest area. For that reason, I started with the mechanical design of the project first. On some other robot projects I have started with software drivers and then never got around
-to even starting on the mechanical portions since I wasn't really looking forward to it.
+When it comes to robot building, the mechanical portions are my weakest area. On some other robot projects I have started with software drivers and then never got around to even starting on the mechanical portions since I wasn't really looking forward to it. Best to get it out of the way first on this project. Doing it first also means that I have something physical to look at and hold earlier in the project to help keep me motivated.
 
 ![Chassis Bottom](cad/ChassisBottom.png)
 
@@ -65,8 +64,12 @@ to even starting on the mechanical portions since I wasn't really looking forwar
   * 1 x Caster
   * 2 x Cliff Detection Sensors (VL6180X) mounted in front of the wheels.
   * 3 x Micro Switches to detect bumper collisions.
+  * 1 x 5 cell (6V) NiMH rechargeable battery.
 * Chassis has holes for attachment of following parts to the topside of the chassis:
   * 5 x Standoffs for Nordic nRF52-DK Development Kit PCB to which shield with remaining sensors/actuators will be mounted.
-  * 3 x Rubber Tube Standoffs to which bumper is attached, allowing bumper to move and press against micro switches when an obstacle is encountered.
+  * 3 x Flexible Rubber Tube Standoffs to which the bumper skirt is attached, allowing bumper to move and press against micro switches when an obstacle is encountered.
+  * Will probably also need at least 50g of counterweight in the back to move the center of mass closer to the caster so that the robot doesn't nose dive during quick decelerations. Only having room for the batteries at the front of the bot increases the need for this counterweight.
+* A separate bumper skirt is printed to enclose the robot.
+  * It is mounted to the chassis on flexible rubber tube standoffs like the Rug Warrior Pro.
 
 ![Chassis Top](cad/ChassisTop.png)
