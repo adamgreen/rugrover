@@ -44,11 +44,11 @@ motorCollarDepth = 1.9-0.7;
 motorShaftDiameter = 2.0;
 motorShaftLength = 6.0;
 
-// Wheel dimensions. 
+// Wheel dimensions.
 wheelDiameter = 80.65;
 wheelThickness = 10.0;
 
-// Caster dimensions. 
+// Caster dimensions.
 //  The wheel itself.
 casterDiameter = 29.85;
 casterInnerDiameter = 22.40;
@@ -97,13 +97,17 @@ bumperSwitchHoleYOffset = -bumperSwitchHeight/2 + 2.9;
 nRF52DK_Length = 101.6;
 nRF52DK_Width = 63.5;
 nRF52DK_Thickness = 1.6;
-// Location of the mounting holes in the nRF52DK PCB. 
+// Location of the mounting holes in the nRF52DK PCB.
 nRF52DK_MountingHoles=[[15.24, 50.8+5, 0], [13.97, 2.54+5, 0], [66, 7.62+5, 0], [66, 35.56+5, 0], [96.52, 2.54+5, 0]];
+
+// Dimensions of the AA cells in the Pololu battery packs.
+batteryDiameter = 14.6;
+batteryLength = 50.4;
 
 
 // Tight clearance.
 clearanceTight = 0.2;
-// Loose clearance. 
+// Loose clearance.
 clearanceLoose = 0.3;
 
 
@@ -114,34 +118,59 @@ baseDiameter = 160.0;
 baseThickness = 2.5;
 // The thickness of the motor mount.
 motorMountThickness = 2.5;
-// Clearance between robot base and wheel. 
+// Clearance between robot base and wheel.
 wheelClearance = 2.0;
-// Additional clearance to have between caster wheel and edge of robot base. 
+// Additional clearance to have between caster wheel and edge of robot base.
 casterClearance = 1.0;
 // Clearance around the motor for the mount.
 motorMountClearance = clearanceLoose;
 // How much larger should the caster mount be than the caster plate itself.
 casterMountClearance = 2.0;
-// Raise the cliff detctors by this amount to make room for the header pins 
+// The radius of the rounded edges of the caster mount.
+casterMountRadius = 1.0;
+// Raise the cliff detctors by this amount to make room for the header pins
 // sticking out the back of the PCB.
 cliffDetectorMountThickness = 3.0;
 // The amount of the cliff detector PCB to the left hanging off of the mount, where header
-// pins are located. 
+// pins are located.
 cliffDetectorMountOffset = 2.54;
-// Angles at which the 3 bumper switches should be placed around the robot base. 
+// Angles at which the 3 bumper switches should be placed around the robot base.
 bumperSwitchAngles = [-25, 151, -151];
-// How many degrees each bumper switch should be roated to get lever facing correct direction. 
+// How many degrees each bumper switch should be roated to get lever facing correct direction.
 bumperSwitchFlips = [180, 0, 180];
-// The length of the slots used to mount the buper switches onto the base. 
+// The length of the slots used to mount the buper switches onto the base.
 bumperSwitchSlotLength = 11.5;
-// Angles to locate the mounting holes for the bumper. 
+// Angles to locate the mounting holes for the bumper.
 bumperMountAngles = [0, 120, -120];
-// Offset of the bumper mounting holes from the outside diameter. 
+// Offset of the bumper mounting holes from the outside diameter.
 bumperMountOffset = 22.0;
-// Bumper mounting hole diameters for M3 bolts. 
+// Bumper mounting hole diameters for M3 bolts.
 bumperMountDiameter = 3.0 + clearanceLoose;
-// Bumper mounting countersink hole size to allow access through caster mount block. 
+// Bumper mounting countersink hole size to allow access through caster mount block.
 bumperMountCountersinkDiameter = 6.0;
+// How far from the robot base should the nRF52DK PCB be mounted.
+nRF52DK_MountingHeight = 15.0;
+// Diameter of the hole used to attach standoffs for the nRF52DK PCB.
+nRF52DK_MountingHoleDiameter = 3.0;
+// Diameter of hole in middle of base for pulling cables through.
+cableHoleDiameter = 25.0;
+// Where the battery pack should be placed on the bottom of the bot, in the Y axis.
+batteryYOffset = -38;
+// Dimensions of slots used to place straps through to hold battery to underside of chassis.
+batteryStrapSlotWidth = 2.5;
+batteryStrapSlotLength = 5.0;
+// The ratio of battery diameters to either side of the X center line, the battery strap 
+// slots should be placed. 1.5 would put close to battery and larger pulls it out a bit.
+batteryStrapSlotXRatio = 1.7;
+// The extra amount to slide the battery strap slot down in the Y axis from the inside edge
+// of the battery pack.
+batteryStrapSlotYOffset = 12.0;
+// Dimensions of ridges placed around battery pack to keep it from moving in X/Y plane.
+batteryPackRidgeInsideLength = 10.0;
+batteryPackRidgeOutsideLength = 20.0;
+batteryPackRidgeWidth = 2.0;
+batteryPackRidgeHeight = batteryDiameter/4;
+batteryPackRidgeClearance = clearanceLoose;
 
 
 
@@ -149,36 +178,30 @@ bumperMountCountersinkDiameter = 6.0;
 // Determine the offset of the outside of the wheel needed to make sure that it is fully enclosed
 // by the base.
 encloseOffset = sqrt((baseDiameter/2)^2-(wheelDiameter/2)^2);
-// Offset wheels so that they fall fully within the base. 
+// Offset wheels so that they fall fully within the base.
 wheelXOffset = encloseOffset-wheelThickness/2;
 // Offset motors so that output shaft is flush with outside of wheel.
 motorXOffset = encloseOffset-(motorGearboxCollarDepth+motorGearboxShaftLength);
 // Motors should sit on top of the base.
 motorZOffset = motorGearboxDiameter/2 + baseThickness;
-// Offset wheels up off the base the same amount as the motors. 
+// Offset wheels up off the base the same amount as the motors.
 wheelZOffset = motorZOffset;
 // Make sure that caster wheel stays within confines of body so that it never touches wrap around bumper.
 casterYOffset = baseDiameter/2 - casterArmXOffset - casterDiameter/2 - casterClearance;
-// Total caster height. 
+// Total caster height.
 casterTotalHeight = casterPlateThickness + casterBearingHeight + casterArmZOffset + casterDiameter/2;
-// Amount of wheel below the robot base. 
+// Amount of wheel below the robot base.
 wheelHeight = wheelDiameter/2 + wheelZOffset;
 // How much taller is the caster in comparison to the drive wheels.
 casterZOffset = wheelHeight - casterTotalHeight;
-// Height of the casterMount. 
+// Height of the casterMount.
 casterMountHeight = casterZOffset - baseThickness;
-// How far from the robot base should the nRF52DK PCB be mounted. 
-nRF52DK_MountingHeight = 5.0;
-// Diameter of the hole used to attach standoffs for the nRF52DK PCB. 
-nRF52DK_MountingHoleDiameter = 3.0;
-// Diameter of hole in middle of base for pulling cables through. 
-cableHoleDiameter = 25.0;
 
 
 
 
 base();
-// Draw all of the extra parts, those not 3D printed, such as motors, caster, sensors, etc. 
+// Draw all of the extra parts, those not 3D printed, such as motors, caster, sensors, etc.
 %union() {
     translate([motorXOffset, 0, motorZOffset]) motor();
     translate([-motorXOffset, 0, motorZOffset]) rotate([0, 0, 180]) motor();
@@ -194,9 +217,11 @@ base();
             nRF52DK_PCB();
     placeNRF52DK()
         nRF52DK_MountingHoles(diameter=nRF52DK_MountingHoleDiameter*1.5, height=nRF52DK_MountingHeight);
+    translate([0, batteryYOffset, baseThickness])
+        batteryPack3_2();
 }
 // Draw ground plane to see if all wheels fall on it.
-*translate([0, 0, wheelZOffset+wheelDiameter/2-0.001]) 
+*translate([0, 0, wheelZOffset+wheelDiameter/2-0.001])
     cube([baseDiameter*2, baseDiameter*2, 0.001], center=true);
 
 
@@ -209,19 +234,21 @@ module base() {
             cylinder(h=baseThickness, d=baseDiameter);
             motorMounts();
             casterMount();
-            placeCliffDetectors() 
+            placeCliffDetectors()
                 mountForCliffDetectors();
+            batteryPackRidges();
         }
         // Things to remove from the circular base.
         wheelCutout(0);
         wheelCutout(1);
         casterMountHoles();
-        placeCliffDetectors() 
+        placeCliffDetectors()
             holesForCliffDetectors();
         bumperSwitchCutouts();
         pcbMountHoles();
         cableHole();
         bumperMountHoles();
+        batterySlotCutouts();
     }
 }
 
@@ -250,7 +277,7 @@ module motorMount() {
                 motorCollarCutout();
                 motorScrewCutout(1.0);
                 motorScrewCutout(-1.0);
-                
+
             }
     motorMountSupport(1.0);
     motorMountSupport(-1.0);
@@ -269,7 +296,7 @@ module motorScrewCutout(offset) {
     translate([-motorMountClearance, offset*motorGearboxHoleOffsetRadius, 0])
         cylinder(h=motorMountThickness+0.02, d=size, center=true);
 }
-        
+
 // Triangular supports to strengthen the motor mounts.
 module motorMountSupport(offset) {
     yOffset = motorMountThickness/2+motorGearboxDiameter/2+motorMountClearance;
@@ -280,13 +307,21 @@ module motorMountSupport(offset) {
 }
 
 // Block with screw holes to which the caster is mounted so that the caster wheel sits even with
-// the main drive wheels. 
+// the main drive wheels.
 module casterMount() {
     width = casterPlateHeight+casterMountClearance;
     length = casterPlateWidth+casterMountClearance;
-    
+
     translate([0, casterYOffset, casterMountHeight/2+baseThickness])
-        cube([width, length, casterMountHeight], center=true);
+        roundedRect(width, length, casterMountHeight, casterMountRadius);
+}
+
+module roundedRect(width, length, height, radius) {
+    hull()
+        for (x=[-1:2:1])
+            for (y=[-1:2:1])
+                translate([x*(width/2-radius), y*(length/2-radius), 0])
+                    cylinder(h=height, r=radius, center=true);
 }
 
 // The 4 holes used to mount the caster.
@@ -296,26 +331,26 @@ module casterMountHoles() {
             casterMountHole(x, y);
 }
 
-// Holes to be placed in caster mount block. 
+// Holes to be placed in caster mount block.
 module casterMountHole(x, y) {
     xOff = x*casterHoleYSpacing/2;
     yOff = casterYOffset + y*casterHoleXSpacing/2;
     thickness = baseThickness + casterMountHeight+0.02;
-    
-    translate([xOff, yOff, thickness/2-0.01])        
+
+    translate([xOff, yOff, thickness/2-0.01])
         cylinder(h=thickness, d=casterHoleDiameter, center=true);
-    translate([xOff, yOff, -0.001])        
+    translate([xOff, yOff, -0.001])
         rotate([180, 0, 0])
             threadedInsertHole();
 }
 
 // Threaded inserts require a hole of diameter 5.23mm down to 5.05mm over length (6.35) + 0.04mm = 6.39
-// Cylinder will be centered on origin, facing upwards, with top aligned to z=0. 
+// Cylinder will be centered on origin, facing upwards, with top aligned to z=0.
 module threadedInsertHole() {
     topDiameter = 5.23;
     bottomDiameter = 5.05;
     length = 6.35 + 0.04;
-    
+
     translate([0, 0, -length])
         cylinder(h=length, d1=bottomDiameter, d2=topDiameter);
 }
@@ -341,17 +376,17 @@ module placeCliffDetectors() {
     angle=angleToInnerEdgeOfCutout + angleFromCenterToEnd;
 
     rotate([0, 0, -angle])
-        translate([xOffset, -cliffDetectorHeight/2, baseThickness]) 
+        translate([xOffset, -cliffDetectorHeight/2, baseThickness])
             children();
     rotate([0, 0, 180+angle])
-        translate([xOffset, -cliffDetectorHeight/2, baseThickness]) 
+        translate([xOffset, -cliffDetectorHeight/2, baseThickness])
             children();
 }
 
 // Mount for cliff detector to make room for back of header pins.
 module mountForCliffDetectors() {
     width = cliffDetectorWidth - cliffDetectorMountOffset;
-    
+
     translate([cliffDetectorMountOffset, 0, 0])
         cube([width, cliffDetectorHeight, cliffDetectorMountThickness]);
 }
@@ -359,7 +394,7 @@ module mountForCliffDetectors() {
 // Holes for a cliff detector.
 module holesForCliffDetectors() {
     thickness = baseThickness + cliffDetectorMountThickness;
-    
+
     for (i=[-1:2:1])
         translate([cliffDetectorMountingHoleXOffset, cliffDetectorHeight/2+i*cliffDetectorMountingHoleYOffset, -baseThickness-0.01])
             cylinder(h=thickness+0.02, d=cliffDetectorMountingHoleDiameter, center=false);
@@ -410,7 +445,7 @@ module placeNRF52DK() {
             children();
 }
 
-// Place cylinders at the location of the mounting holes in the nRF52DK PCB. 
+// Place cylinders at the location of the mounting holes in the nRF52DK PCB.
 module nRF52DK_MountingHoles(diameter, height) {
     for (i=nRF52DK_MountingHoles) {
         translate(i)
@@ -418,7 +453,7 @@ module nRF52DK_MountingHoles(diameter, height) {
     }
 }
 
-// This is the cable through which the cables will be routed from the bottom of the bot, 
+// This is the cable through which the cables will be routed from the bottom of the bot,
 // up to the PCB on the top. This includes motor, encoder, cliff detector, and bumper
 // switch cabling.
 module cableHole() {
@@ -437,13 +472,53 @@ module bumperMountHoles() {
         cylinder(h=casterMountHeight+0.002, d=bumperMountCountersinkDiameter);
 }
 
+// Cutouts for straps used to hold battery pack in place.
+module batterySlotCutouts() {
+    for(y=[-1:2:1])
+        for(x=[-1:2:1])
+            batterySlotCutout(x, y);
+}
+
+module batterySlotCutout(x, y) {
+    yOffset = batteryYOffset+y*(-batteryStrapSlotLength/2+batteryLength/2-batteryStrapSlotYOffset);
+
+    translate([x*batteryDiameter*batteryStrapSlotXRatio, yOffset, baseThickness/2+0.01])
+        roundedSlot(endDiameter=batteryStrapSlotWidth, length=batteryStrapSlotLength, thickness=baseThickness+0.02);
+}
+
+// Add ridges around battery pack to keep it from moving in X/Y plane.
+module batteryPackRidges() {
+    batteryPackInsideRidge(1);
+    batteryPackInsideRidge(-1);
+    batteryPackOutsideRidge();
+}
+
+module batteryPackInsideRidge(x) {
+    batteryPackWidth = 3*batteryDiameter;
+    xOffset = x*(batteryPackWidth/2-batteryPackRidgeInsideLength/2);
+    yOffset = batteryYOffset+1*(batteryLength/2+batteryPackRidgeWidth/2+batteryPackRidgeClearance);
+    zOffset = batteryPackRidgeHeight/2+baseThickness;
+    translate([xOffset, yOffset, zOffset])
+        rotate([0, 0, 90])
+            roundedSlot(batteryPackRidgeWidth, batteryPackRidgeInsideLength, batteryPackRidgeHeight);
+}
+
+module batteryPackOutsideRidge() {
+    batteryPackWidth = 3*batteryDiameter;
+    yOffset = batteryYOffset+(-1)*(batteryLength/2+batteryPackRidgeWidth/2+batteryPackRidgeClearance);
+    zOffset = batteryPackRidgeHeight/2+baseThickness;
+    translate([0, yOffset, zOffset])
+        rotate([0, 0, 90])
+            roundedSlot(batteryPackRidgeWidth, batteryPackRidgeOutsideLength-batteryPackRidgeWidth, batteryPackRidgeHeight);
+}
+
 
 
 
 // Pololu's Metal Gearmotor 20Dx43L mm 6V CB with Extended Motor Shaft
 // https://www.pololu.com/category/214/6v-carbon-brush-cb-20d-gearmotors
+// The face of the gearbox is at the origin.
 module motor() {
-    // UNDONE: Add some comments about how the motor parts are to be oriented.
     translate([-motorGearboxLength, 0, 0]) {
         motorGearbox();
         motorMotor();
@@ -627,7 +702,7 @@ module casterArmCutout() {
 
 // Pololu's VL6180X Time-of-Flight Distance Sensor Carrier
 // https://www.pololu.com/product/2489
-// Will be aligned at the origin in the positive portion of the x, y, and z axis. 
+// Will be aligned at the origin in the positive portion of the x, y, and z axis.
 // SMDs components are facing upwards.
 module cliffDetector() {
     import("vl6180x-carrier.stl");
@@ -654,7 +729,7 @@ module bumperBodyWithMountingHoles() {
     }
 }
 
-// The lever on the bumper switch. 
+// The lever on the bumper switch.
 module bumperLever() {
     translate([-bumperSwitchWidth/2+3.0, bumperSwitchHeight/2, 0])
         linear_extrude(4.0, center=true)
@@ -664,13 +739,49 @@ module bumperLever() {
 
 
 
-// The nRF52DK PCB 3D. 
+// The nRF52DK PCB 3D.
 // Sitting in positive X, Y, Z quadrant with coin holder sticking down through bottom.
 module nRF52DK_PCB() {
     translate([0, 0, nRF52DK_Thickness])
         import("nRF52-DK.stl");
 }
-    
+
+
+
+// Pololu's Rechargeable NiMH Battery Pack: 6.0 V, 2200 mAh, 5x1 AA Cells, JR Connector
+// https://www.pololu.com/product/2223
+module batteryPack5() {
+    translate([0, 0, batteryDiameter/2]) {
+        rotate([90, 0, 0]) {
+            battery(0, -2);
+            battery(0, -1);
+            battery(0, 0);
+            battery(0, 1);
+            battery(0, 2);
+        }
+    }
+}
+
+// Pololu's Rechargeable NiMH Battery Pack: 6.0 V, 2200 mAh, 3+2 AA Cells, JR Connector
+// https://www.pololu.com/product/2224
+module batteryPack3_2() {
+    translate([0, 0, batteryDiameter/2]) {
+        rotate([90, 0, 0]) {
+            battery(0, -1);
+            battery(0, 0);
+            battery(0, 1);
+            battery(0.85, -0.5);
+            battery(0.85, 0.5);
+        }
+    }
+}
+
+// A single cell from a pack.
+module battery(row, col) {
+    translate([col*batteryDiameter, row*batteryDiameter, 0])
+        cylinder(h=batteryLength, d=batteryDiameter, center=true);
+}
+
 
 
 
