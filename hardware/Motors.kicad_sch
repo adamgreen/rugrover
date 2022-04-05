@@ -5,8 +5,10 @@
   (paper "A")
 
   (title_block
+    (title "RugRover Shield")
     (date "2022-03-29")
     (rev "0.1")
+    (comment 1 "CC BY-SA 4.0")
   )
 
   (lib_symbols

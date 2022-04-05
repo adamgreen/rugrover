@@ -4,6 +4,12 @@
 
   (paper "A")
 
+  (title_block
+    (title "RugRover Shield")
+    (rev "0.1")
+    (comment 1 "CC BY-SA 4.0")
+  )
+
   (lib_symbols
     (symbol "Connector:Conn_01x03_Male" (pin_names (offset 1.016) hide) (in_bom yes) (on_board yes)
       (property "Reference" "J" (id 0) (at 0 5.08 0)
@@ -782,7 +788,6 @@
       )
     )
   )
-
 
   (junction (at 119.38 67.31) (diameter 0) (color 0 0 0 0)
     (uuid 00b9e213-c50b-4107-b9e8-7901bf5bde21)

@@ -4,7 +4,7 @@
 
 When I first started pursuing robotics as a hobby back in the late 1990s, one of the first books I read was ["Mobile Robots: Inspiration to Implementation" by Joseph L. Jones and Anita M. Flynn](https://www.amazon.com/Mobile-Robots-Inspiration-Implementation-Second/dp/B0087P7X2S). I just read it again recently and the core lessons covered by the book are just as useful today as they were back at that time even though some of the technology discussed is now a bit out of date. The mechanical, electrical, motor physics, and behavior based programming topics covered are all still relevant. The Motorola 68HC11 microcontroller and Interactive C programming language are examples of some of the more dated topics.
 
-After reading the book for the first time, I ordered one of the [Rug Warrior Pro kits](http://www.robotbooks.com/rug_warrior.htm) and assembled it. I enjoyed putting it together but never did a lot of experimentation with it as I never really got one of the wheel encoders to work properly as it seemed to pick up noise from the motor as erroneous encoder tick counts.
+After reading the book for the first time, I ordered one of the [Rug Warrior Pro kits](http://www.robotbooks.com/rug_warrior.htm) and assembled it. I enjoyed putting it together but never did a lot of experimentation with it as I never really got one of the wheel encoders to work properly. It seemed to pick up noise from the motor as erroneous encoder tick counts.
 
 ![My original Rug Warrior Pro](photos/20210304-01.jpg)
 
@@ -24,11 +24,10 @@ Having recently reread the book, I thought it would be fun to build a comparable
   * Program in C/C++ using GCC.
   * Debug code using GDB.
 * Mechanical components will be designed in CAD and 3D printed.
-* Use KiCAD to design custom PCB for this bot. The first iteration of the PCB might be a shield for a nRF52 development kit that I already own. Later I could design a new PCB that uses a small nRF52 module, like those offered by Adafruit, instead.
+* Use KiCAD to design custom PCB for this bot. The first iteration of the PCB might be a shield for a nRF52 development kit that I already own. Later I could design a new PCB that uses a small nRF52 module, like those offered by Adafruit.
 
 
 ## Bill of Materials
-**Photo of the parts that I have so far**
 | Quantity | Part Name / Link |
 |---|-|
 | 2 | [63:1 Metal Gearmotor 20Dx43L mm 6V CB with Extended Motor Shaft](https://www.pololu.com/product/3714) |
@@ -36,17 +35,24 @@ Having recently reread the book, I thought it would be fun to build a comparable
 | 2 | [TB9051FTG Single Brushed DC Motor Driver Carrier](https://www.pololu.com/product/2997) |
 | 1 | [Pololu Multi-Hub Wheel w/Inserts for 3mm and 4mm Shafts - 80×10mm, Black, 2-Pack](https://www.pololu.com/product/3690) |
 | 1 | [Supporting Swivel Caster Wheel - 1.3" Diameter](https://www.adafruit.com/product/2942) |
-| 2 | [Pololu 3.3V, 500mA Step-Down Voltage Regulator D24V5F3](https://www.pololu.com/product/2842) |
+| 1 | [Pololu 3.3V, 500mA Step-Down Voltage Regulator D24V5F3](https://www.pololu.com/product/2842) |
+| 1 | [Pololu 5V, 500mA Step-Down Voltage Regulator D24V5F5](https://www.pololu.com/product/2843) |
+| 1 | [Pololu 12V Step-Up Voltage Regulator U3V40F12](https://www.pololu.com/product/4016) |
 | 1 | [Adafruit I2S 3W Class D Amplifier Breakout - MAX98357A](https://www.adafruit.com/product/3006) |
 | 1 | [Mini Oval Speaker - 8 Ohm 1 Watt](https://www.adafruit.com/product/3923) |
 | 1 | [Adafruit PDM MEMS Microphone Breakout](https://www.adafruit.com/product/3492) |
 | 1 | [Graphical OLED Display: 128x64, 1.3", White, SPI](https://www.pololu.com/product/3760) |
 | 2 | [VL6180X Time-of-Flight Distance Sensor Carrier with Voltage Regulator, 60cm max](https://www.pololu.com/product/2489) |
-| 6 | [VL53L1X Time-of-Flight Distance Sensor Carrier with Voltage Regulator, 400cm Max](https://www.pololu.com/product/3415) |
+| 5 | [VL53L1X Time-of-Flight Distance Sensor Carrier with Voltage Regulator, 400cm Max](https://www.pololu.com/product/3415) |
 | 2 | [Photo cell (CdS photoresistor)](https://www.adafruit.com/product/161) |
 | 3 | [Snap-Action Switch with 15.6mm Bump Lever: 3-Pin, SPDT, 5A](https://www.pololu.com/product/1405) |
 | 1 | [PIR Motion Sensor](https://www.pololu.com/product/2731) |
+| 1 | [Adafruit Precision NXP 9-DOF Breakout Board - FXOS8700 + FXAS21002](https://www.adafruit.com/product/3463) |
+| 1 | [Diode Schottky 60 V 7A Surface Mount TO-277A ](https://www.digikey.com/en/products/detail/vishay-general-semiconductor-diodes-division/SS10P6-M3-86A/2152231) |
+| 1 | [Toggle Switch SPDT Through Hole](https://www.digikey.com/en/products/detail/e-switch/100SP1T1B4M2QE/378824?s=N4IgTCBcDaIKIHEwGYCsqC0A5AIiAugL5A) |
 | 1 | [Rechargeable NiMH Battery Pack: 6.0 V, 2200 mAh, 3+2 AA Cells, JR Connector](https://www.pololu.com/product/2224) |
+| 1 | [Red Dirt Derby 2 oz Tungsten Putty Weights](https://www.amazon.com/Red-Dirt-Derby-Tungsten-Pinewood/dp/B06Y5FDLL6) |
+| 1 | [1/4" OD Black Latex Tubing for Bumper Skirt Standoffs](https://www.amazon.com/LATEX-TUBING-602-BLACK-10FT/dp/B074NCLZSW) |
 
 ![Parts](photos/20210304-02.jpg)
 

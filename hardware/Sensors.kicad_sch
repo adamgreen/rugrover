@@ -5,8 +5,10 @@
   (paper "A")
 
   (title_block
+    (title "RugRover Shield")
     (date "2022-03-29")
     (rev "0.1")
+    (comment 1 "CC BY-SA 4.0")
   )
 
   (lib_symbols
@@ -794,7 +796,7 @@
   (no_connect (at 54.61 33.02) (uuid 6394addf-115f-4850-839c-3f20d0b9637b))
   (no_connect (at 129.54 33.02) (uuid 6eade7f8-17cf-49ed-a18d-bcd3220dec96))
   (no_connect (at 177.8 121.92) (uuid 706c8f27-cda7-4bdf-b5e7-cd0aae336896))
-  (no_connect (at 177.8 142.24) (uuid 706c8f27-cda7-4bdf-b5e7-cd0aae336896))
+  (no_connect (at 177.8 142.24) (uuid 706c8f27-cda7-4bdf-b5e7-cd0aae336897))
   (no_connect (at 185.42 33.02) (uuid 9584069a-c635-4bee-8570-2e28bf4a755d))
   (no_connect (at 54.61 167.64) (uuid ae03e17b-a836-4bc0-ae6b-c64621cdc189))
   (no_connect (at 54.61 177.8) (uuid ae03e17b-a836-4bc0-ae6b-c64621cdc18a))
