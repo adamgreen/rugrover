@@ -633,7 +633,6 @@
   (no_connect (at 153.67 38.1) (uuid 4f788da4-4372-48d6-b09a-e2c62f7fed37))
   (no_connect (at 156.21 38.1) (uuid a01bb413-f5c6-416b-ad55-7f936d0580ec))
   (no_connect (at 161.29 38.1) (uuid b47614ad-9f8f-45ba-b4a8-3c5e6cade49c))
-  (no_connect (at 163.83 38.1) (uuid c0cedabc-cf12-4786-8ca8-574e5d9851f5))
   (no_connect (at 109.22 68.58) (uuid ef430f81-be6c-44e1-af8f-0a2c69691b0a))
   (no_connect (at 158.75 38.1) (uuid f3a2a305-4b11-4c6f-81dd-e6ca9e205060))
   (no_connect (at 142.24 123.19) (uuid fd09c8f7-8d8c-4aa5-9d17-90ee6f2a5541))
@@ -1374,28 +1373,12 @@
     (pin "1" (uuid a0cab484-92e5-4acf-93dd-ba03748ceba4))
   )
 
-  (symbol (lib_id "Connector_Generic:Conn_01x01") (at 163.83 33.02 90) (unit 1)
-    (in_bom yes) (on_board yes)
-    (uuid 00000000-0000-0000-0000-000056d711a2)
-    (property "Reference" "P10" (id 0) (at 163.83 30.48 90)
-      (effects (font (size 0.7874 0.7874)))
-    )
-    (property "Value" "CONN_01X01" (id 1) (at 163.83 30.48 90)
-      (effects (font (size 1.27 1.27)) hide)
-    )
-    (property "Footprint" "Socket_Arduino_Mega:Arduino_1pin" (id 2) (at 163.83 33.02 0)
-      (effects (font (size 1.27 1.27)) hide)
-    )
-    (property "Datasheet" "" (id 3) (at 163.83 33.02 0))
-    (pin "1" (uuid 03e2e222-b368-413a-b8e2-c2f6c21e0180))
-  )
-
   (symbol (lib_id "Connector_Generic:Conn_01x08") (at 114.3 58.42 0) (unit 1)
     (in_bom yes) (on_board yes)
     (uuid 00000000-0000-0000-0000-000056d71773)
     (property "Reference" "P2" (id 0) (at 114.3 48.26 0))
     (property "Value" "Power" (id 1) (at 116.84 58.42 90))
-    (property "Footprint" "Socket_Arduino_Mega:Socket_Strip_Arduino_1x08" (id 2) (at 114.3 58.42 0)
+    (property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x08_P2.54mm_Vertical" (id 2) (at 114.3 58.42 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "" (id 3) (at 114.3 58.42 0))
@@ -1426,7 +1409,7 @@
     (uuid 00000000-0000-0000-0000-000056d72368)
     (property "Reference" "P5" (id 0) (at 137.16 43.18 0))
     (property "Value" "GPIO" (id 1) (at 134.62 55.88 90))
-    (property "Footprint" "Socket_Arduino_Mega:Socket_Strip_Arduino_1x10" (id 2) (at 137.16 55.88 0)
+    (property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x10_P2.54mm_Vertical" (id 2) (at 137.16 55.88 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "" (id 3) (at 137.16 55.88 0))
@@ -1478,7 +1461,7 @@
     (uuid 00000000-0000-0000-0000-000056d734d0)
     (property "Reference" "P6" (id 0) (at 137.16 76.2 0))
     (property "Value" "GPIO" (id 1) (at 134.62 86.36 90))
-    (property "Footprint" "Socket_Arduino_Mega:Socket_Strip_Arduino_1x08" (id 2) (at 137.16 86.36 0)
+    (property "Footprint" "Connector_PinHeader_2.54mm:PinHeader_1x08_P2.54mm_Vertical" (id 2) (at 137.16 86.36 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "" (id 3) (at 137.16 86.36 0))
@@ -1848,13 +1831,13 @@
       (reference "J4") (unit 1) (value "12V Boost Regulator") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x06_P2.54mm_Vertical")
     )
     (path "/fa8f6b07-7d40-4224-a9dc-a3ae06b76dce/c41f1f65-4d05-4264-a854-9f96f99e463e"
-      (reference "J5") (unit 1) (value "Left Photo Cell") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x02_P2.54mm_Vertical")
+      (reference "J5") (unit 1) (value "Left Photo") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x02_P2.54mm_Vertical")
     )
     (path "/fa8f6b07-7d40-4224-a9dc-a3ae06b76dce/8dd47c44-d93d-44e4-bfe0-d5568149451f"
-      (reference "J6") (unit 1) (value "Front Left Distance Sensor") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x07_P2.54mm_Vertical")
+      (reference "J6") (unit 1) (value "Front Left Distance") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x07_P2.54mm_Vertical")
     )
     (path "/fa8f6b07-7d40-4224-a9dc-a3ae06b76dce/241435af-54e9-4685-b37a-3161a8718ba3"
-      (reference "J7") (unit 1) (value "Back Left Distance Sensor") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x07_P2.54mm_Vertical")
+      (reference "J7") (unit 1) (value "Back Left Distance") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x07_P2.54mm_Vertical")
     )
     (path "/fa8f6b07-7d40-4224-a9dc-a3ae06b76dce/1a78194f-66b2-4f54-beb3-01fb20a69781"
       (reference "J8") (unit 1) (value "IMU-1") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x06_P2.54mm_Vertical")
@@ -1866,31 +1849,31 @@
       (reference "J10") (unit 1) (value "Right Photo Cell") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x02_P2.54mm_Vertical")
     )
     (path "/fa8f6b07-7d40-4224-a9dc-a3ae06b76dce/b9d391e5-c004-47c7-88fb-f10dbe91d248"
-      (reference "J11") (unit 1) (value "Front Center Distance Sensor") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x07_P2.54mm_Vertical")
+      (reference "J11") (unit 1) (value "Front Center Distance") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x07_P2.54mm_Vertical")
     )
     (path "/fa8f6b07-7d40-4224-a9dc-a3ae06b76dce/94517954-83cb-4fc7-9baa-5ebc7d4b74eb"
-      (reference "J13") (unit 1) (value "Bumper Switch 1") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x02_P2.54mm_Horizontal")
+      (reference "J13") (unit 1) (value "Bump1") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x02_P2.54mm_Horizontal")
     )
     (path "/fa8f6b07-7d40-4224-a9dc-a3ae06b76dce/72556355-70a9-4b7d-b310-0fb788bbf3c7"
-      (reference "J14") (unit 1) (value "Bumper Switch 2") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x02_P2.54mm_Horizontal")
+      (reference "J14") (unit 1) (value "Bump2") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x02_P2.54mm_Horizontal")
     )
     (path "/fa8f6b07-7d40-4224-a9dc-a3ae06b76dce/1d294281-1e4b-49e0-aceb-f1ea3f848d1d"
-      (reference "J15") (unit 1) (value "Bumper Switch 3") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x02_P2.54mm_Horizontal")
+      (reference "J15") (unit 1) (value "Bump3") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x02_P2.54mm_Horizontal")
     )
     (path "/fa8f6b07-7d40-4224-a9dc-a3ae06b76dce/d3051d8f-5266-489d-9e3d-0145522584e5"
-      (reference "J16") (unit 1) (value "PIR Sensor") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x03_P2.54mm_Vertical")
+      (reference "J16") (unit 1) (value "PIR") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x03_P2.54mm_Vertical")
     )
     (path "/fa8f6b07-7d40-4224-a9dc-a3ae06b76dce/02f1e5e4-55a6-4970-ac87-9fdf8bcf971f"
-      (reference "J17") (unit 1) (value "Front Right Distance Sensor") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x07_P2.54mm_Vertical")
+      (reference "J17") (unit 1) (value "Front Right Distance") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x07_P2.54mm_Vertical")
     )
     (path "/fa8f6b07-7d40-4224-a9dc-a3ae06b76dce/80ce8885-4772-497b-b446-6f54fda8d63e"
-      (reference "J18") (unit 1) (value "Back Right Distance Sensor") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x07_P2.54mm_Vertical")
+      (reference "J18") (unit 1) (value "Back Right Distance") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x07_P2.54mm_Vertical")
     )
     (path "/fa8f6b07-7d40-4224-a9dc-a3ae06b76dce/a014ebbd-2c2d-471f-a9ea-21ecea81ec81"
-      (reference "J19") (unit 1) (value "Left Cliff Sensor") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x07_P2.54mm_Horizontal")
+      (reference "J19") (unit 1) (value "Left Cliff") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x07_P2.54mm_Horizontal")
     )
     (path "/fa8f6b07-7d40-4224-a9dc-a3ae06b76dce/cbbf99b0-f621-4255-9478-f224af720ca8"
-      (reference "J20") (unit 1) (value "Right Cliff Sensor") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x07_P2.54mm_Horizontal")
+      (reference "J20") (unit 1) (value "Right Cliff") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x07_P2.54mm_Horizontal")
     )
     (path "/fa8f6b07-7d40-4224-a9dc-a3ae06b76dce/84375f8b-a254-4cdf-a053-6e6c22a58f9b"
       (reference "J21") (unit 1) (value "OLED") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x07_P2.54mm_Vertical")
@@ -1908,22 +1891,22 @@
       (reference "J25") (unit 1) (value "RMotor-2") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x04_P2.54mm_Vertical")
     )
     (path "/2bb6c136-8f3a-4530-8b08-9c3c632d4195/7385c06f-c56f-4edf-843c-21a50d007fa2"
-      (reference "J26") (unit 1) (value "LeftMotor Conn") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x06_P2.54mm_Horizontal")
+      (reference "J26") (unit 1) (value "Left Motor") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x06_P2.54mm_Horizontal")
     )
     (path "/2bb6c136-8f3a-4530-8b08-9c3c632d4195/2f3ca387-0a81-462f-a184-dfe2120fe907"
-      (reference "J27") (unit 1) (value "RightMotor Conn") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x06_P2.54mm_Horizontal")
+      (reference "J27") (unit 1) (value "Right Motor") (footprint "Connector_PinSocket_2.54mm:PinSocket_1x06_P2.54mm_Horizontal")
     )
     (path "/00000000-0000-0000-0000-000056d71773"
-      (reference "P2") (unit 1) (value "Power") (footprint "Socket_Arduino_Mega:Socket_Strip_Arduino_1x08")
+      (reference "P2") (unit 1) (value "Power") (footprint "Connector_PinHeader_2.54mm:PinHeader_1x08_P2.54mm_Vertical")
     )
     (path "/00000000-0000-0000-0000-000056d72f1c"
       (reference "P3") (unit 1) (value "Analog") (footprint "Connector_PinHeader_2.54mm:PinHeader_1x06_P2.54mm_Vertical")
     )
     (path "/00000000-0000-0000-0000-000056d72368"
-      (reference "P5") (unit 1) (value "GPIO") (footprint "Socket_Arduino_Mega:Socket_Strip_Arduino_1x10")
+      (reference "P5") (unit 1) (value "GPIO") (footprint "Connector_PinHeader_2.54mm:PinHeader_1x10_P2.54mm_Vertical")
     )
     (path "/00000000-0000-0000-0000-000056d734d0"
-      (reference "P6") (unit 1) (value "GPIO") (footprint "Socket_Arduino_Mega:Socket_Strip_Arduino_1x08")
+      (reference "P6") (unit 1) (value "GPIO") (footprint "Connector_PinHeader_2.54mm:PinHeader_1x08_P2.54mm_Vertical")
     )
     (path "/00000000-0000-0000-0000-000056d73f2c"
       (reference "P7") (unit 1) (value "GPIO") (footprint "Connector_PinHeader_2.54mm:PinHeader_1x09_P2.54mm_Vertical")
@@ -1933,9 +1916,6 @@
     )
     (path "/00000000-0000-0000-0000-000056d70d2c"
       (reference "P9") (unit 1) (value "CONN_01X01") (footprint "Socket_Arduino_Mega:Arduino_1pin")
-    )
-    (path "/00000000-0000-0000-0000-000056d711a2"
-      (reference "P10") (unit 1) (value "CONN_01X01") (footprint "Socket_Arduino_Mega:Arduino_1pin")
     )
     (path "/00000000-0000-0000-0000-000056d70b71"
       (reference "P11") (unit 1) (value "CONN_01X01") (footprint "Socket_Arduino_Mega:Arduino_1pin")
