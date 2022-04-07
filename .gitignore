@@ -1,8 +1,16 @@
 # Files to be ignored by Git
 .DS_Store
+*.zip
 
 # Temporary KiCad files.
 *.kicad_prl
 fp-info-cache
 **/gerbers/
 **/shield-backups/
+
+# Makefile will install nRF SDK in this folder.
+nrfSDK/
+
+# User should install Nordic tools in this folder.
+nrfTools/mergehex
+nrfTools/nrfjprog
