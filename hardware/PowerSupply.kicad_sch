@@ -6,7 +6,8 @@
 
   (title_block
     (title "RugRover Shield")
-    (rev "0.1")
+    (date "2022-04-05")
+    (rev "1.0")
     (comment 1 "CC BY-SA 4.0")
   )
 
