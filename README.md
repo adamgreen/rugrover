@@ -6,7 +6,7 @@ When I first started pursuing robotics as a hobby back in the late 1990s, one of
 
 After reading the book for the first time, I ordered one of the [Rug Warrior Pro kits](http://www.robotbooks.com/rug_warrior.htm) and assembled it. I enjoyed putting it together but never did a lot of experimentation with it as I never really got one of the wheel encoders to work properly. It seemed to pick up noise from the motor as erroneous encoder tick counts.
 
-![My original Rug Warrior Pro](photos/20210304-01.jpg)
+![My original Rug Warrior Pro](photos/20220304-01.jpg)
 
 Having recently reread the book, I thought it would be fun to build a comparable robot using more recent technology. This Rug Rover project is my attempt to build such a robot. It features will include:
 * Similar sensors/actuators:
@@ -42,6 +42,7 @@ Having recently reread the book, I thought it would be fun to build a comparable
 | 1 | [Mini Oval Speaker - 8 Ohm 1 Watt](https://www.adafruit.com/product/3923) |
 | 1 | [Adafruit PDM MEMS Microphone Breakout](https://www.adafruit.com/product/3492) |
 | 1 | [Graphical OLED Display: 128x64, 1.3", White, SPI](https://www.pololu.com/product/3760) |
+| 1 | [MCP23018T-E/SO - I/O Expander 16 I²C 3.4 MHz 28-SOIC](https://www.digikey.com/en/products/detail/microchip-technology/MCP23018T-E-SO/2002549) |
 | 2 | [VL6180X Time-of-Flight Distance Sensor Carrier with Voltage Regulator, 60cm max](https://www.pololu.com/product/2489) |
 | 5 | [VL53L1X Time-of-Flight Distance Sensor Carrier with Voltage Regulator, 400cm Max](https://www.pololu.com/product/3415) |
 | 2 | [Photo cell (CdS photoresistor)](https://www.adafruit.com/product/161) |
@@ -53,9 +54,11 @@ Having recently reread the book, I thought it would be fun to build a comparable
 | 1 | [Rechargeable NiMH Battery Pack: 6.0 V, 2200 mAh, 3+2 AA Cells, JR Connector](https://www.pololu.com/product/2224) |
 | 1 | [Red Dirt Derby 2 oz Tungsten Putty Weights](https://www.amazon.com/Red-Dirt-Derby-Tungsten-Pinewood/dp/B06Y5FDLL6) |
 | 1 | [1/4" OD Black Latex Tubing for Bumper Skirt Standoffs](https://www.amazon.com/LATEX-TUBING-602-BLACK-10FT/dp/B074NCLZSW) |
+| X | Already owned 0805 passives, 0.1" headers, etc. |
 
-![Parts](photos/20210304-02.jpg)
+![Parts](photos/20220304-02.jpg)
 
+**Notes:** I didn't end up with enough spare pins on version 1 of the PCB to connect the microphone and I2S audio components. I will experiment with these devices off of the robot for now and then add them on the next revision of the board.
 
 ## Mechanical Design
 When it comes to robot building, the mechanical portions are my weakest area. On some other robot projects I have started with software drivers and then never got around to even starting on the mechanical portions since I wasn't really looking forward to it. Best to get it out of the way first on this project. Doing it first also means that I have something physical to look at and hold earlier in the project to help keep me motivated.
@@ -79,3 +82,39 @@ When it comes to robot building, the mechanical portions are my weakest area. On
   * It is mounted to the chassis on flexible rubber tube standoffs like the Rug Warrior Pro.
 
 ![Chassis Top](cad/ChassisTop.png)
+
+## Electronics Design
+Once I had the mechanical design mostly figured out, I moved onto the design of the electronics in [KiCad](https://www.kicad.org).
+
+**Electronic Highlights:**
+* The initial version of the electronics will use the [Nordic nRF52 DK](https://www.nordicsemi.com/Products/Development-hardware/nrf52-dk) as its base and the custom robot electronics will be added as a custom shield.
+* The shield design is 4-layer to make it easier to route the signals all around the board without worrying about ground and power. The layout is a bit complicated as the Arduino header format used by the nRF52 DK has most of the signals on one side of the board but I want to place input/output connectors on both sides of the board.
+* Most of the sensors and actuators are connected to the PCB via 0.1" headers.
+* Version 1 of the shield includes:
+  * Dual TB9051FTG motor controllers
+  * Quadrature motor encoders
+  * Dual photo cells
+  * PIR motion sensor
+  * Three switches for bumper skirt obstacle detection
+  * SPI based OLED screen
+  * One I2C bus for connection to:
+    * 5 x VL53L1X ToF Obstacle Detection Sensors (3 front facing & 2 back facing).
+    * 2 x VL6180X ToF Cliff Detection Sensors mounted in front of the wheels.
+    * 1 x Adafruit Precision NXP 9-DOF IMU
+    * 1 x 16 channel MCP23018 I/O port expander used for:
+      * Asserting VL53L1X and VL6180X XSHUT pins to init each one separately and give them unique I2C addresses.
+      * Reading of the multiple VL53L1X and VL6180X GPIO pins.
+ * Multiple voltage supplies:
+   * 6V Directly from Batteries for Motors
+   * 5V from Buck Regulator for TB9051FTG Motor Controllers
+   * 12V from Boost Regulator for PIR Sensor
+   * 3.3V from Buck Regulator for rest of Electronics
+
+![3D Board View](hardware/shield.png)
+
+The board design has now been sent off to [OSHPark](https://oshpark.com) for fabrication.
+
+![Top of PCB](photos/20220406-01.png)</br>
+![Bottom of PCB](photos/20220406-02.png)
+
+[Schematic PDF](hardware/shield.pdf)</br>

@@ -8,6 +8,9 @@ fp-info-cache
 **/gerbers/
 **/shield-backups/
 
+# .step file I export of the shield PCB but then convert to .stl for OpenSCAD.
+hardware/shield.step
+
 # Makefile will install nRF SDK in this folder.
 nrfSDK/
 

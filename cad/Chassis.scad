@@ -104,6 +104,14 @@ nRF52DK_MountingHoles=[[15.24, 50.8+5, 0], [13.97, 2.54+5, 0], [66, 7.62+5, 0], 
 batteryDiameter = 14.6;
 batteryLength = 50.4;
 
+// Dimensions of my RugRover shield that to be placed on top of the nRF52 DK.
+// How much further above the nRF52 DK should my RugRover shield be placed. 
+shieldZOffset = 11.7;
+// Offset my RugRover shield STL model to sit right above the nRF52 DK.
+shieldXOffset = -0.25;
+shieldYOffset = -16.0;
+
+
 
 // Tight clearance.
 clearanceTight = 0.2;
@@ -184,7 +192,7 @@ bumperGroundClearance = 20.0;
 // Diameter of flexible bumper standoffs.
 bumperStandoffDiameter = 6.0;
 // How tall are the flexible bumper standoffs.
-bumperStandoffHeight = 38.0;
+bumperStandoffHeight = 45.0;
 // The amount of extra top on the bumper skirt there should be to cover the flexible standoffs.
 bumperTopClearance = 2.0;
 
@@ -225,32 +233,35 @@ bumperTopID = baseDiameter-bumperMountOffset*2-bumperStandoffDiameter-2*bumperTo
 
 
 
-
-base();
-// Draw all of the extra parts, those not 3D printed, such as motors, caster, sensors, etc.
-%union() {
-    translate([motorXOffset, 0, motorZOffset]) motor();
-    translate([-motorXOffset, 0, motorZOffset]) rotate([0, 0, 180]) motor();
-    translate([wheelXOffset, 0, wheelZOffset]) wheel();
-    translate([-wheelXOffset, 0, wheelZOffset]) rotate([0, 0, 180]) wheel();
-    translate([0, casterYOffset, casterZOffset]) rotate([0, 180, 0]) caster();
-    translate([0, 0, cliffDetectorMountThickness])
-        placeCliffDetectors()
-            cliffDetector();
-    placeBumperSwitches();
-    translate([0, 0, -nRF52DK_MountingHeight])
+// Flipping it over to view it better but the original orientation is how it should be printed.
+rotate([0, 180, 0]) {
+    base();
+    // Draw all of the extra parts, those not 3D printed, such as motors, caster, sensors, etc.
+    %union() {
+        translate([motorXOffset, 0, motorZOffset]) motor();
+        translate([-motorXOffset, 0, motorZOffset]) rotate([0, 0, 180]) motor();
+        translate([wheelXOffset, 0, wheelZOffset]) wheel();
+        translate([-wheelXOffset, 0, wheelZOffset]) rotate([0, 0, 180]) wheel();
+        translate([0, casterYOffset, casterZOffset]) rotate([0, 180, 0]) caster();
+        translate([0, 0, cliffDetectorMountThickness])
+            placeCliffDetectors()
+                cliffDetector();
+        placeBumperSwitches();
+        translate([0, 0, -nRF52DK_MountingHeight])
+            placeNRF52DK()
+                nRF52DK_PCB();
         placeNRF52DK()
-            nRF52DK_PCB();
-    placeNRF52DK()
-        nRF52DK_MountingHoles(diameter=nRF52DK_MountingHoleDiameter*1.5, height=nRF52DK_MountingHeight);
-    translate([0, batteryYOffset, baseThickness])
-        batteryPack3_2();
-    flexibleBumperStandoffs();
-    bumperSkirt();
+            nRF52DK_MountingHoles(diameter=nRF52DK_MountingHoleDiameter*1.5, height=nRF52DK_MountingHeight);
+        translate([0, batteryYOffset, baseThickness])
+            batteryPack3_2();
+        flexibleBumperStandoffs();
+        shield();
+        bumperSkirt();
+    }
+    // Draw ground plane to see if all wheels fall on it.
+    *translate([0, 0, wheelZOffset+wheelDiameter/2-0.001])
+        cube([baseDiameter*2, baseDiameter*2, 0.001], center=true);
 }
-// Draw ground plane to see if all wheels fall on it.
-*translate([0, 0, wheelZOffset+wheelDiameter/2-0.001])
-    cube([baseDiameter*2, baseDiameter*2, 0.001], center=true);
 
 
 
@@ -852,6 +863,12 @@ module battery(row, col) {
         cylinder(h=batteryLength, d=batteryDiameter, center=true);
 }
 
+// My RugRover shield PCB with parts installed. 
+module shield() {
+    translate([shieldXOffset, shieldYOffset, -nRF52DK_MountingHeight-shieldZOffset])
+        rotate([180, 0, 90])
+            import("../hardware/shield.stl");
+}
 
 
 
