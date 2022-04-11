@@ -1,5 +1,5 @@
 # Rug Rover
-![RugRover Photo of Work In Progress](photos/20220410-01.jpg)
+![RugRover Photo of Work In Progress](photos/RugRover.jpg)
 
 ## Project Overview
 ![My copy of Mobile Robotics](https://raw.githubusercontent.com/adamgreen/Ferdinand20/master/photos/20210914-01.jpg)
