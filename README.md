@@ -57,6 +57,7 @@ Having recently reread the book, I thought it would be fun to build a comparable
 | 1 | [Red Dirt Derby 2 oz Tungsten Putty Weights](https://www.amazon.com/Red-Dirt-Derby-Tungsten-Pinewood/dp/B06Y5FDLL6) |
 | 1 | [1/4" OD Black Latex Tubing for Bumper Skirt Standoffs](https://www.amazon.com/LATEX-TUBING-602-BLACK-10FT/dp/B074NCLZSW) |
 | X | Already owned 0805 passives, 0.1" headers, etc. |
+| X | Already owned M2, M2.5, and M3 hardware |
 
 ![Parts](photos/20220304-02.jpg)
 
