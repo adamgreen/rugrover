@@ -17,3 +17,6 @@ nrfSDK/
 # User should install Nordic tools in this folder.
 nrfTools/mergehex
 nrfTools/nrfjprog
+
+# Can ignore gcode files for 3D prints as they can be generated from .3mf/.stl
+*.gcode

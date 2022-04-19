@@ -123,7 +123,7 @@ clearanceLoose = 0.3;
 // The diameter of the circular robot base.
 baseDiameter = 160.0;
 // The thickness of the circular robot base.
-baseThickness = 2.5;
+baseThickness = 5.0;
 // The thickness of the motor mount.
 motorMountThickness = 2.5;
 // Clearance between robot base and wheel.
@@ -157,7 +157,7 @@ bumperMountDiameter = 3.0 + clearanceLoose;
 // Bumper mounting countersink hole size to allow access through caster mount block.
 bumperMountCountersinkDiameter = 6.0;
 // How far from the robot base should the nRF52DK PCB be mounted.
-nRF52DK_MountingHeight = 8.0;
+nRF52DK_MountingHeight = 6.0;
 // Diameter of the hole used to attach standoffs for the nRF52DK PCB.
 nRF52DK_MountingHoleDiameter = 3.0;
 // Diameter of hole in middle of base for pulling cables through.
@@ -192,7 +192,7 @@ bumperGroundClearance = 20.0;
 // Diameter of flexible bumper standoffs.
 bumperStandoffDiameter = 6.0;
 // How tall are the flexible bumper standoffs.
-bumperStandoffHeight = 45.0;
+bumperStandoffHeight = 43.0;
 // The amount of extra top on the bumper skirt there should be to cover the flexible standoffs.
 bumperTopClearance = 2.0;
 
