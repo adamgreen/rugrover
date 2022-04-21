@@ -26,7 +26,7 @@ Having recently reread the book, I thought it would be fun to build a comparable
   * Program in C/C++ using GCC.
   * Debug code using GDB.
 * Mechanical components will be designed in CAD and 3D printed.
-* Use KiCAD to design custom PCB for this bot. The first iteration of the PCB might be a shield for a nRF52 development kit that I already own. Later I could design a new PCB that uses a small nRF52 module, like those offered by Adafruit.
+* Use KiCAD to design custom PCB for this bot. The first iteration of the PCB might be a shield for a nRF52 development kit that I already own. Later I could design a new PCB that uses a small nRF52 module, like those [offered by Adafruit](https://www.adafruit.com/product/4077).
 
 
 ## Bill of Materials

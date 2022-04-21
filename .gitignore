@@ -7,9 +7,16 @@
 fp-info-cache
 **/gerbers/
 **/shield-backups/
+**/_autosave-*
 
 # .step file I export of the shield PCB but then convert to .stl for OpenSCAD.
 hardware/shield.step
+
+# Can ignore gcode files for 3D prints as they can be generated from .3mf/.stl
+*.gcode
+
+# Log files.
+mri.log
 
 # Makefile will install nRF SDK in this folder.
 nrfSDK/
@@ -18,5 +25,5 @@ nrfSDK/
 nrfTools/mergehex
 nrfTools/nrfjprog
 
-# Can ignore gcode files for 3D prints as they can be generated from .3mf/.stl
-*.gcode
+# Output of Nordic SDK build.
+_build/

@@ -1,0 +1,2 @@
+#! /usr/bin/env bash
+arm-none-eabi-gdb --baud 230400 -ex "set target-charset ASCII" -ex "set print pretty on" -ex "set remotelogfile mri.log" -ex "target remote /dev/tty.usbmodem0006820843921" _build/*.out

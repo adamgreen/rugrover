@@ -1,0 +1,44 @@
+diff -Naurb nrfSDK2/components/softdevice/s130/headers/nrf_svc.h nrfSDK/components/softdevice/s130/headers/nrf_svc.h
+--- nrfSDK2/components/softdevice/s130/headers/nrf_svc.h	2016-04-20 15:57:06.000000000 -0700
++++ nrfSDK/components/softdevice/s130/headers/nrf_svc.h	2020-02-06 02:01:48.000000000 -0800
+@@ -52,7 +52,7 @@
+ #define SVCALL(number, return_type, signature) return_type __svc(number) signature
+ #elif defined (__GNUC__)
+ #ifdef __cplusplus
+-#define GCC_CAST_CPP (uint8_t)
++#define GCC_CAST_CPP (uint16_t)
+ #else
+ #define GCC_CAST_CPP    
+ #endif
+diff -Naurb nrfSDK2/components/softdevice/s132/headers/nrf_svc.h nrfSDK/components/softdevice/s132/headers/nrf_svc.h
+--- nrfSDK2/components/softdevice/s132/headers/nrf_svc.h	2017-05-05 13:10:30.000000000 -0700
++++ nrfSDK/components/softdevice/s132/headers/nrf_svc.h	2021-04-08 00:32:15.000000000 -0700
+@@ -52,7 +52,7 @@
+ #define SVCALL(number, return_type, signature) return_type __svc(number) signature
+ #elif defined (__GNUC__)
+ #ifdef __cplusplus
+-#define GCC_CAST_CPP (uint8_t)
++#define GCC_CAST_CPP (uint16_t)
+ #else
+ #define GCC_CAST_CPP    
+ #endif
+diff -Naurb nrfSDK2/components/toolchain/gcc/Makefile.common nrfSDK/components/toolchain/gcc/Makefile.common
+--- nrfSDK2/components/toolchain/gcc/Makefile.common	2017-05-05 13:10:30.000000000 -0700
++++ nrfSDK/components/toolchain/gcc/Makefile.common	2020-02-05 21:01:46.000000000 -0800
+@@ -154,6 +154,7 @@
+ 	$(NO_ECHO)$(DUMP_FILE_LIST) > $(@:.out=.in)
+ 	@echo Linking target: $@
+ 	$(NO_ECHO)$(CC) -Wl,-Map=$(@:.out=.map) $(LDFLAGS) @$(@:.out=.in) -lm -o $@
++	$(NO_ECHO)$(OBJDUMP) -d -f -M reg-names-std --demangle $@ > $(@:.out=.disasm)
+ 	-@echo ''
+ 	$(NO_ECHO)$(SIZE) $@
+ 	-@echo ''
+diff -Naurb nrfSDK2/components/toolchain/gcc/Makefile.posix nrfSDK/components/toolchain/gcc/Makefile.posix
+--- nrfSDK2/components/toolchain/gcc/Makefile.posix	2017-05-05 13:10:30.000000000 -0700
++++ nrfSDK/components/toolchain/gcc/Makefile.posix	2020-02-05 21:01:46.000000000 -0800
+@@ -1,3 +1,3 @@
+-GNU_INSTALL_ROOT := /usr/local/gcc-arm-none-eabi-4_9-2015q3
+-GNU_VERSION := 4.9.3
++GNU_INSTALL_ROOT := $(patsubst %/bin/,%,$(dir $(shell which arm-none-eabi-gcc)))
++GNU_VERSION := 7.3.1
+ GNU_PREFIX := arm-none-eabi
