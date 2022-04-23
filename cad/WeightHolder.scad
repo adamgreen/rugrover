@@ -13,4 +13,5 @@
 // The chassis for my RugRover bot.
 include <Common.scad>
 
-base();
+rotate([0, 180, 0])
+    counterWeightHolder();

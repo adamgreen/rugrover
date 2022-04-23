@@ -13,4 +13,4 @@
 // The chassis for my RugRover bot.
 include <Common.scad>
 
-base();
+bumperSkirt();
