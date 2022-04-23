@@ -54,7 +54,7 @@ Having recently reread the book, I thought it would be fun to build a comparable
 | 1 | [Diode Schottky 60 V 7A Surface Mount TO-277A ](https://www.digikey.com/en/products/detail/vishay-general-semiconductor-diodes-division/SS10P6-M3-86A/2152231) |
 | 1 | [Toggle Switch SPDT Through Hole](https://www.digikey.com/en/products/detail/e-switch/100SP1T1B4M2QE/378824?s=N4IgTCBcDaIKIHEwGYCsqC0A5AIiAugL5A) |
 | 1 | [Rechargeable NiMH Battery Pack: 6.0 V, 2200 mAh, 3+2 AA Cells, JR Connector](https://www.pololu.com/product/2224) |
-| 1 | [Red Dirt Derby 2 oz Tungsten Putty Weights](https://www.amazon.com/Red-Dirt-Derby-Tungsten-Pinewood/dp/B06Y5FDLL6) |
+| 2 | [Red Dirt Derby 2 oz Tungsten Putty Weights](https://www.amazon.com/Red-Dirt-Derby-Tungsten-Pinewood/dp/B06Y5FDLL6) |
 | 1 | [1/4" OD Black Latex Tubing for Bumper Skirt Standoffs](https://www.amazon.com/LATEX-TUBING-602-BLACK-10FT/dp/B074NCLZSW) |
 | X | Already owned 0805 passives, 0.1" headers, etc. |
 | X | Already owned M2, M2.5, and M3 hardware |
@@ -80,7 +80,7 @@ When it comes to robot building, the mechanical portions are my weakest area. On
 * Chassis has holes for attachment of following parts to the topside of the chassis:
   * 5 x Standoffs for Nordic nRF52-DK Development Kit PCB to which shield with remaining sensors/actuators will be mounted.
   * 3 x Flexible Rubber Tube Standoffs to which the bumper skirt is attached, allowing bumper to move and press against micro switches when an obstacle is encountered.
-  * Will probably also need at least 50g of counterweight in the back to move the center of mass closer to the caster so that the robot doesn't nose dive during quick decelerations. Only having room for the batteries at the front of the bot increases the need for this counterweight.
+  * A separate curved cylindrical 3D printed holder that goes on the back of the robot to hold ~100g of tungsten counter weight. This moves the center of mass closer to the caster so that the robot doesn't nose dive during quick decelerations. Only having room for the batteries at the front of the bot increased the need for this counterweight.
 * A separate bumper skirt is printed to enclose the robot.
   * It is mounted to the chassis on flexible rubber tube standoffs like the Rug Warrior Pro.
 
@@ -113,11 +113,7 @@ Once I had the mechanical design mostly figured out, I moved onto the design of 
    * 12V from Boost Regulator for PIR Sensor
    * 3.3V from Buck Regulator for rest of Electronics
 
-![3D Board View](hardware/shield.png)
-
-The board design has now been sent off to [OSHPark](https://oshpark.com) for fabrication.
-
-![Top of PCB](photos/20220406-01.png)</br>
-![Bottom of PCB](photos/20220406-02.png)
+![3D Board View](hardware/shield.png)</br>
+![Photo of boards back from OSHPark](photos/20220420-01.jpg)
 
 [Schematic PDF](hardware/shield.pdf)</br>
