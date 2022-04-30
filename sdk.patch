@@ -1,18 +1,164 @@
+diff -Naurb nrfSDK2/components/ble/ble_advertising/ble_advertising.c nrfSDK/components/ble/ble_advertising/ble_advertising.c
+--- nrfSDK2/components/ble/ble_advertising/ble_advertising.c	2017-05-05 14:10:54.000000000 -0700
++++ nrfSDK/components/ble/ble_advertising/ble_advertising.c	2021-02-27 11:15:56.000000000 -0800
+@@ -322,7 +322,7 @@
+             p_adv_params->p_whitelist = &m_whitelist;
+         #endif
+ 
+-        p_adv_params->fp = BLE_GAP_ADV_FP_FILTER_CONNREQ;
++        p_adv_params->fp = BLE_GAP_ADV_FP_FILTER_BOTH;
+         m_advdata.flags  = BLE_GAP_ADV_FLAG_BR_EDR_NOT_SUPPORTED;
+ 
+         ret = ble_advdata_set(&m_advdata, NULL);
+@@ -365,7 +365,7 @@
+         }
+         #endif
+ 
+-        p_adv_params->fp = BLE_GAP_ADV_FP_FILTER_CONNREQ;
++        p_adv_params->fp = BLE_GAP_ADV_FP_FILTER_BOTH;
+         m_advdata.flags  = BLE_GAP_ADV_FLAG_BR_EDR_NOT_SUPPORTED;
+ 
+         ret = ble_advdata_set(&m_advdata, NULL);
+diff -Naurb nrfSDK2/components/ble/ble_services/ble_nus/ble_nus.c nrfSDK/components/ble/ble_services/ble_nus/ble_nus.c
+--- nrfSDK2/components/ble/ble_services/ble_nus/ble_nus.c	2017-05-05 14:10:54.000000000 -0700
++++ nrfSDK/components/ble/ble_services/ble_nus/ble_nus.c	2021-02-26 01:55:39.000000000 -0800
+@@ -131,7 +131,7 @@
+     memset(&cccd_md, 0, sizeof(cccd_md));
+ 
+     BLE_GAP_CONN_SEC_MODE_SET_OPEN(&cccd_md.read_perm);
+-    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&cccd_md.write_perm);
++    cccd_md.write_perm = p_nus_init->cccd_write_perm;
+ 
+     cccd_md.vloc = BLE_GATTS_VLOC_STACK;
+ 
+@@ -149,8 +149,8 @@
+ 
+     memset(&attr_md, 0, sizeof(attr_md));
+ 
+-    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.read_perm);
+-    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.write_perm);
++    attr_md.read_perm = p_nus_init->rx_read_perm;
++    BLE_GAP_CONN_SEC_MODE_SET_NO_ACCESS(&attr_md.write_perm);
+ 
+     attr_md.vloc    = BLE_GATTS_VLOC_STACK;
+     attr_md.rd_auth = 0;
+@@ -202,8 +202,8 @@
+ 
+     memset(&attr_md, 0, sizeof(attr_md));
+ 
+-    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.read_perm);
+-    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.write_perm);
++    BLE_GAP_CONN_SEC_MODE_SET_NO_ACCESS(&attr_md.read_perm);
++    attr_md.write_perm = p_nus_init->tx_write_perm;
+ 
+     attr_md.vloc    = BLE_GATTS_VLOC_STACK;
+     attr_md.rd_auth = 0;
+diff -Naurb nrfSDK2/components/ble/ble_services/ble_nus/ble_nus.h nrfSDK/components/ble/ble_services/ble_nus/ble_nus.h
+--- nrfSDK2/components/ble/ble_services/ble_nus/ble_nus.h	2017-05-05 14:10:54.000000000 -0700
++++ nrfSDK/components/ble/ble_services/ble_nus/ble_nus.h	2021-02-26 01:52:16.000000000 -0800
+@@ -86,6 +86,9 @@
+  */
+ typedef struct
+ {
++    ble_gap_conn_sec_mode_t cccd_write_perm;
++    ble_gap_conn_sec_mode_t rx_read_perm;
++    ble_gap_conn_sec_mode_t tx_write_perm;
+     ble_nus_data_handler_t data_handler; /**< Event handler to be called for handling received data. */
+ } ble_nus_init_t;
+ 
+diff -Naurb nrfSDK2/components/drivers_nrf/hal/nrf_spim.h nrfSDK/components/drivers_nrf/hal/nrf_spim.h
+--- nrfSDK2/components/drivers_nrf/hal/nrf_spim.h	2017-05-05 14:10:54.000000000 -0700
++++ nrfSDK/components/drivers_nrf/hal/nrf_spim.h	2021-02-22 15:25:46.000000000 -0800
+@@ -306,7 +306,7 @@
+  */
+ __STATIC_INLINE void nrf_spim_tx_buffer_set(NRF_SPIM_Type * p_reg,
+                                             uint8_t const * p_buffer,
+-                                            uint8_t         length);
++                                            uint16_t         length);
+ 
+ /**
+  * @brief Function for setting the receive buffer.
+@@ -317,7 +317,7 @@
+  */
+ __STATIC_INLINE void nrf_spim_rx_buffer_set(NRF_SPIM_Type * p_reg,
+                                             uint8_t * p_buffer,
+-                                            uint8_t   length);
++                                            uint16_t   length);
+ 
+ /**
+  * @brief Function for setting the SPI configuration.
+@@ -467,7 +467,7 @@
+ 
+ __STATIC_INLINE void nrf_spim_tx_buffer_set(NRF_SPIM_Type * p_reg,
+                                             uint8_t const * p_buffer,
+-                                            uint8_t         length)
++                                            uint16_t        length)
+ {
+     p_reg->TXD.PTR    = (uint32_t)p_buffer;
+     p_reg->TXD.MAXCNT = length;
+@@ -475,7 +475,7 @@
+ 
+ __STATIC_INLINE void nrf_spim_rx_buffer_set(NRF_SPIM_Type * p_reg,
+                                             uint8_t * p_buffer,
+-                                            uint8_t   length)
++                                            uint16_t  length)
+ {
+     p_reg->RXD.PTR    = (uint32_t)p_buffer;
+     p_reg->RXD.MAXCNT = length;
+diff -Naurb nrfSDK2/components/drivers_nrf/spi_master/nrf_drv_spi.c nrfSDK/components/drivers_nrf/spi_master/nrf_drv_spi.c
+--- nrfSDK2/components/drivers_nrf/spi_master/nrf_drv_spi.c	2017-05-05 14:10:54.000000000 -0700
++++ nrfSDK/components/drivers_nrf/spi_master/nrf_drv_spi.c	2021-02-22 14:16:23.000000000 -0800
+@@ -127,7 +127,7 @@
+     //  are not concurrently used in IRQ handlers and main line code]
+     uint8_t         ss_pin;
+     uint8_t         orc;
+-    uint8_t         bytes_transferred;
++    uint16_t        bytes_transferred;
+ 
+     bool tx_done : 1;
+     bool rx_done : 1;
+@@ -342,9 +342,9 @@
+ 
+ ret_code_t nrf_drv_spi_transfer(nrf_drv_spi_t const * const p_instance,
+                                 uint8_t const * p_tx_buffer,
+-                                uint8_t         tx_buffer_length,
++                                uint16_t        tx_buffer_length,
+                                 uint8_t       * p_rx_buffer,
+-                                uint8_t         rx_buffer_length)
++                                uint16_t        rx_buffer_length)
+ {
+     nrf_drv_spi_xfer_desc_t xfer_desc;
+     xfer_desc.p_tx_buffer = p_tx_buffer;
+diff -Naurb nrfSDK2/components/drivers_nrf/spi_master/nrf_drv_spi.h nrfSDK/components/drivers_nrf/spi_master/nrf_drv_spi.h
+--- nrfSDK2/components/drivers_nrf/spi_master/nrf_drv_spi.h	2017-05-05 14:10:54.000000000 -0700
++++ nrfSDK/components/drivers_nrf/spi_master/nrf_drv_spi.h	2021-02-22 14:08:02.000000000 -0800
+@@ -207,9 +207,9 @@
+ typedef struct
+ {
+     uint8_t const * p_tx_buffer; ///< Pointer to TX buffer.
+-    uint8_t         tx_length;   ///< TX buffer length.
++    uint16_t        tx_length;   ///< TX buffer length.
+     uint8_t       * p_rx_buffer; ///< Pointer to RX buffer.
+-    uint8_t         rx_length;   ///< RX buffer length.
++    uint16_t        rx_length;   ///< RX buffer length.
+ }nrf_drv_spi_xfer_desc_t;
+ 
+ 
+@@ -325,9 +325,9 @@
+  */
+ ret_code_t nrf_drv_spi_transfer(nrf_drv_spi_t const * const p_instance,
+                                 uint8_t const * p_tx_buffer,
+-                                uint8_t         tx_buffer_length,
++                                uint16_t         tx_buffer_length,
+                                 uint8_t       * p_rx_buffer,
+-                                uint8_t         rx_buffer_length);
++                                uint16_t         rx_buffer_length);
+ 
+ 
+ /**
 diff -Naurb nrfSDK2/components/softdevice/s130/headers/nrf_svc.h nrfSDK/components/softdevice/s130/headers/nrf_svc.h
 --- nrfSDK2/components/softdevice/s130/headers/nrf_svc.h	2016-04-20 15:57:06.000000000 -0700
-+++ nrfSDK/components/softdevice/s130/headers/nrf_svc.h	2020-02-06 02:01:48.000000000 -0800
-@@ -52,7 +52,7 @@
- #define SVCALL(number, return_type, signature) return_type __svc(number) signature
- #elif defined (__GNUC__)
- #ifdef __cplusplus
--#define GCC_CAST_CPP (uint8_t)
-+#define GCC_CAST_CPP (uint16_t)
- #else
- #define GCC_CAST_CPP    
- #endif
-diff -Naurb nrfSDK2/components/softdevice/s132/headers/nrf_svc.h nrfSDK/components/softdevice/s132/headers/nrf_svc.h
---- nrfSDK2/components/softdevice/s132/headers/nrf_svc.h	2017-05-05 13:10:30.000000000 -0700
-+++ nrfSDK/components/softdevice/s132/headers/nrf_svc.h	2021-04-08 00:32:15.000000000 -0700
++++ nrfSDK/components/softdevice/s130/headers/nrf_svc.h	2021-02-17 01:58:55.000000000 -0800
 @@ -52,7 +52,7 @@
  #define SVCALL(number, return_type, signature) return_type __svc(number) signature
  #elif defined (__GNUC__)
@@ -24,7 +170,7 @@ diff -Naurb nrfSDK2/components/softdevice/s132/headers/nrf_svc.h nrfSDK/componen
  #endif
 diff -Naurb nrfSDK2/components/toolchain/gcc/Makefile.common nrfSDK/components/toolchain/gcc/Makefile.common
 --- nrfSDK2/components/toolchain/gcc/Makefile.common	2017-05-05 13:10:30.000000000 -0700
-+++ nrfSDK/components/toolchain/gcc/Makefile.common	2020-02-05 21:01:46.000000000 -0800
++++ nrfSDK/components/toolchain/gcc/Makefile.common	2021-02-17 01:58:55.000000000 -0800
 @@ -154,6 +154,7 @@
  	$(NO_ECHO)$(DUMP_FILE_LIST) > $(@:.out=.in)
  	@echo Linking target: $@
@@ -35,7 +181,7 @@ diff -Naurb nrfSDK2/components/toolchain/gcc/Makefile.common nrfSDK/components/t
  	-@echo ''
 diff -Naurb nrfSDK2/components/toolchain/gcc/Makefile.posix nrfSDK/components/toolchain/gcc/Makefile.posix
 --- nrfSDK2/components/toolchain/gcc/Makefile.posix	2017-05-05 13:10:30.000000000 -0700
-+++ nrfSDK/components/toolchain/gcc/Makefile.posix	2020-02-05 21:01:46.000000000 -0800
++++ nrfSDK/components/toolchain/gcc/Makefile.posix	2021-02-17 01:58:55.000000000 -0800
 @@ -1,3 +1,3 @@
 -GNU_INSTALL_ROOT := /usr/local/gcc-arm-none-eabi-4_9-2015q3
 -GNU_VERSION := 4.9.3
