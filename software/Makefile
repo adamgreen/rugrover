@@ -172,7 +172,7 @@ INC_FOLDERS += \
 
 # Libraries common to all targets
 # Add in MRI debug monitor.
-LIB_FILES += $(MRI_PATH)/libmri_nrf52dk_fpu_hard.a
+LIB_FILES += $(MRI_PATH)/lib/armv7-m/libmri_nrf52dk_fpu_hard.a
 
 # C flags common to all targets
 CFLAGS += -D__HEAP_SIZE=0
@@ -251,7 +251,7 @@ LDFLAGS += -Wl,--gc-sections
 # use newlib in nano version
 LDFLAGS += --specs=nano.specs -lc -lnosys
 
-.PHONY: $(TARGETS) default all clean help flash flash_softdevice sdk
+.PHONY: $(TARGETS) default all clean help flash flash_softdevice sdk mri
 
 # Default target - first one defined
 default: nrf52832_xxaa
@@ -260,6 +260,7 @@ default: nrf52832_xxaa
 help:
 	@echo The following rules are available:
 	@echo   sdk - Needs to be run first to install Nordic SDK, required for build.
+	@echo   mri - Make sure that the mri submodule prereq is initialized and built.
 	@echo   clean - Deletes all output binaries so that next build is performed from scratch.
 	@echo   all - Builds all supported targets - nrf52832_xxaa.
 	@echo   erase - Erases all of the FLASH on the nRF5 device.
@@ -309,3 +310,9 @@ $(SDK_ROOT): $(SDK_ZIP_PATH)
 $(SDK_ZIP_PATH):
 	@echo Downloading $@
 	$(NO_ECHO)curl -L0 $(SDK_URL) >$@
+
+mri :
+	@echo Initializing mri submodules...
+	@cd ..; git submodule update --init mri
+	@echo Building mri...
+	@$(MAKE) --no-print-directory -C ../mri

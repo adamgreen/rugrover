@@ -36,7 +36,7 @@
 #include <nrf_log_ctrl.h>
 #include <softdevice_handler_appsh.h>
 #include <bsp.h>
-#include <mri.h>
+#include <core/mri.h>
 
 
 // UNDONE: Currently using switch 4 which is also connected to RMOTOR_DIAG by my shield.
