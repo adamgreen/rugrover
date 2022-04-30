@@ -169,6 +169,7 @@ INC_FOLDERS += \
   $(SDK_ROOT)/components/libraries/simple_timer \
   $(PROJ_DIR) \
   $(MRI_PATH) \
+  $(MRI_PATH)/cmsis/NRF52 \
 
 # Libraries common to all targets
 # Add in MRI debug monitor.

@@ -1,4 +1,4 @@
-/*  Copyright (C) 2021  Adam Green (https://github.com/adamgreen)
+/*  Copyright (C) 2022  Adam Green (https://github.com/adamgreen)
 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License
@@ -37,6 +37,8 @@
 #include <softdevice_handler_appsh.h>
 #include <bsp.h>
 #include <core/mri.h>
+#include <architectures/armv7-m/armv7-m.h>
+#include <architectures/armv7-m/debug_cm3.h>
 
 
 // UNDONE: Currently using switch 4 which is also connected to RMOTOR_DIAG by my shield.
@@ -299,6 +301,8 @@ static void handlePeerManagerEvent(pm_evt_t const * pEvent);
 static void initGapParams(void);
 static void initBleUartService(void);
 static void nordicUartServiceHandler(ble_nus_t * pNordicUartService, uint8_t * pData, uint16_t length);
+static bool isAlreadyDebugging(void);
+static void setControlCFlag(void);
 static void initBleAdvertising(void);
 static void bleAdvertisingEventHandler(ble_adv_evt_t bleAdvertisingEvent);
 static void handleServiceError(uint32_t errorCode);
@@ -358,7 +362,7 @@ int main(void)
             nrf_delay_ms(500);
         }
 #endif // UNDONE
-        __debugbreak();
+//        __debugbreak();
     }
 
     // Enter main loop.
@@ -804,6 +808,22 @@ static void nordicUartServiceHandler(ble_nus_t * pNordicUartService, uint8_t * p
 {
     uint32_t bytesWritten = CircularQueue_Write(&g_bleToMriQueue, pData, length);
     ASSERT ( bytesWritten == length );
+    if (!isAlreadyDebugging())
+    {
+        // GDB is sending a command, probably a CTRL+C, so pend entry into DebugMon handler.
+        setControlCFlag();
+        setMonitorPending();
+    }
+}
+
+static bool isAlreadyDebugging(void)
+{
+    return mriCortexMFlags & CORTEXM_FLAGS_ACTIVE_DEBUG;
+}
+
+static void setControlCFlag(void)
+{
+    mriCortexMFlags |= CORTEXM_FLAGS_CTRL_C;
 }
 
 static void initBleAdvertising(void)
