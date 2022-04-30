@@ -32,6 +32,7 @@ SRC_FILES += \
   $(SDK_ROOT)/components/drivers_nrf/hal/nrf_adc.c \
   $(SDK_ROOT)/components/drivers_nrf/spi_master/nrf_drv_spi.c \
   $(PROJ_DIR)/main.c \
+  $(PROJ_DIR)/mriblue_asm.S \
   $(SDK_ROOT)/external/segger_rtt/RTT_Syscalls_GCC.c \
   $(SDK_ROOT)/external/segger_rtt/SEGGER_RTT.c \
   $(SDK_ROOT)/external/segger_rtt/SEGGER_RTT_printf.c \
@@ -251,6 +252,7 @@ LDFLAGS += -mfloat-abi=hard -mfpu=fpv4-sp-d16
 LDFLAGS += -Wl,--gc-sections
 # use newlib in nano version
 LDFLAGS += --specs=nano.specs -lc -lnosys
+LDFLAGS += -Wl,--allow-multiple-definition
 
 .PHONY: $(TARGETS) default all clean help flash flash_softdevice sdk mri
 

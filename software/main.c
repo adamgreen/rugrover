@@ -55,7 +55,14 @@
 // If haven't received any more data from MRI in this amount of bit times, then send what we have already received.
 // Will run timer with this period. This value is selected because there are ~558us between the start of a full
 // BLE packet and the time an ACK comes back.
-#define NAGLE_TIME_MICROSECONDS    500
+#define NAGLE_TIME_MICROSECONDS         500
+
+// Priority level to run MRI debug monitor at.
+#define MRIBLUE_PRIORITY                6
+
+// Macro to convert priority level to MRI parameter string.
+#define MRI_PRIORITY_STRING(PRIO)       MRI_PRIORITY_STRING2(PRIO)
+#define MRI_PRIORITY_STRING2(PRIO)      "MRI_PRIORITY=" #PRIO
 
 // Value of the RTC1 PRESCALER register.
 #define APP_TIMER_PRESCALER             0
@@ -339,17 +346,17 @@ int main(void)
 
 
     // Communicates events from Radio/BLE stack up to application code.
-    NVIC_SetPriority(SWI1_EGU1_IRQn, 5);
-    NVIC_SetPriority(SWI2_EGU2_IRQn, 5);
+    NVIC_SetPriority(SWI1_EGU1_IRQn, MRIBLUE_PRIORITY-1);
+    NVIC_SetPriority(SWI2_EGU2_IRQn, MRIBLUE_PRIORITY-1);
     // Timer1 is used to send MRI data to BLE stack (implements naggling algorithm as well.)
-    NVIC_SetPriority(TIMER1_IRQn, 5);
+    NVIC_SetPriority(TIMER1_IRQn, MRIBLUE_PRIORITY-1);
 
     // Used by BSP code.
 //    NVIC_SetPriority(SWI0_EGU0_IRQn, 5);
 //    NVIC_SetPriority(RTC1_IRQn, 5);
 //    NVIC_SetPriority(GPIOTE_IRQn, 5);
 
-    mriInit("MRI_PRIORITY=6");
+    mriInit(MRI_PRIORITY_STRING(MRIBLUE_PRIORITY));
     __debugbreak();
 
     /* Toggle LEDs. */
@@ -363,6 +370,7 @@ int main(void)
         }
 #endif // UNDONE
 //        __debugbreak();
+        *(volatile uint32_t*)0xFFFFFFFF; // = 0xbaadf00d;
     }
 
     // Enter main loop.
@@ -1187,4 +1195,124 @@ static void waitForSpaceInQueue()
     while (CircularQueue_IsFull(&g_mriToBleQueue))
     {
     }
+}
+
+
+
+/* Lower nibble of EXC_RETURN in LR will have one of these values if interrupted code was running in thread mode.
+   Using PSP. */
+#define EXC_RETURN_THREADMODE_PROCESSSTACK  0xD
+/*  Using MSP. */
+#define EXC_RETURN_THREADMODE_MAINSTACK     0x9
+
+typedef struct ExceptionStack
+{
+    uint32_t    r0;
+    uint32_t    r1;
+    uint32_t    r2;
+    uint32_t    r3;
+    uint32_t    r12;
+    uint32_t    lr;
+    uint32_t    pc;
+    uint32_t    xpsr;
+    /* Need to check EXC_RETURN value in exception LR to see if these floating point registers have been stacked. */
+    uint32_t    s0;
+    uint32_t    s1;
+    uint32_t    s2;
+    uint32_t    s3;
+    uint32_t    s4;
+    uint32_t    s5;
+    uint32_t    s6;
+    uint32_t    s7;
+    uint32_t    s8;
+    uint32_t    s9;
+    uint32_t    s10;
+    uint32_t    s11;
+    uint32_t    s12;
+    uint32_t    s13;
+    uint32_t    s14;
+    uint32_t    s15;
+    uint32_t    fpscr;
+} ExceptionStack;
+
+
+static ExceptionStack* getExceptionStack(uint32_t excReturn, uint32_t psp, uint32_t msp);
+static bool isExceptionPriorityLowEnoughToDebug(uint32_t exceptionNumber);
+static uint32_t getInterruptPriority(uint32_t exceptionNumber);
+static void recordAndClearFaultStatusBits();
+static void setPendedFromFaultBit(void);
+
+
+void mriFaultHandler(uint32_t psp, uint32_t msp, uint32_t excReturn)
+{
+    ExceptionStack* pExceptionStack = getExceptionStack(excReturn, psp, msp);
+    uint32_t exceptionNumber = pExceptionStack->xpsr & 0xFF;
+    if (isExceptionPriorityLowEnoughToDebug(exceptionNumber))
+    {
+        // Pend DebugMon interrupt to debug the fault.
+        recordAndClearFaultStatusBits();
+        setPendedFromFaultBit();
+        setMonitorPending();
+    }
+    else
+    {
+        // UNDONE: Come up with a better way to handle these.
+        while (true)
+        {
+        }
+    }
+}
+
+static ExceptionStack* getExceptionStack(uint32_t excReturn, uint32_t psp, uint32_t msp)
+{
+    uint32_t sp;
+    if ((excReturn & 0xF) == EXC_RETURN_THREADMODE_PROCESSSTACK)
+        sp = psp;
+    else
+        sp = msp;
+    return (ExceptionStack*)sp;
+}
+
+static bool isExceptionPriorityLowEnoughToDebug(uint32_t exceptionNumber)
+{
+    if (exceptionNumber == 0)
+    {
+        // Can always debug main thread as it has lowest priority.
+        return true;
+    }
+    else if (exceptionNumber < 16)
+    {
+        // These are system exceptions that can't be debugged.
+        return false;
+    }
+    else
+    {
+        // Look up priority level in NVIC to see if it is low enough to be debugged.
+        return getInterruptPriority(exceptionNumber) > MRIBLUE_PRIORITY;
+    }
+}
+
+static uint32_t getInterruptPriority(uint32_t exceptionNumber)
+{
+    return NVIC->IP[exceptionNumber - 16];
+}
+
+static void recordAndClearFaultStatusBits(void)
+{
+    mriCortexMState.exceptionNumber = getCurrentlyExecutingExceptionNumber();
+    mriCortexMState.dfsr = SCB->DFSR;
+    mriCortexMState.hfsr = SCB->HFSR;
+    mriCortexMState.cfsr = SCB->CFSR;
+    mriCortexMState.mmfar = SCB->MMFAR;
+    mriCortexMState.bfar = SCB->BFAR;
+
+    // Clear fault status bits by writing 1s to bits that are already set.
+    SCB->DFSR = mriCortexMState.dfsr;
+    SCB->HFSR = mriCortexMState.hfsr;
+    SCB->CFSR = mriCortexMState.cfsr;
+}
+
+static void setPendedFromFaultBit(void)
+{
+    mriCortexMFlags |= CORTEXM_FLAGS_PEND_FROM_FAULT;
 }
