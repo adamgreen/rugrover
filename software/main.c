@@ -158,19 +158,19 @@
 #endif
 
 // Nordic UART service.
-static ble_nus_t                    g_nordicUartService;
+static ble_nus_t    g_nordicUartService;
 
 // Current BLE connection.
-static uint16_t                     g_currBleConnection = BLE_CONN_HANDLE_INVALID;
+static uint16_t     g_currBleConnection = BLE_CONN_HANDLE_INVALID;
 
 // UUIDS returned in advertising scan response.
-static ble_uuid_t                   g_advertiseUuids[] = {{MRIBLUE_ADVERTISE, BLE_UUID_TYPE_VENDOR_BEGIN}};
+static ble_uuid_t   g_advertiseUuids[] = {{MRIBLUE_ADVERTISE, BLE_UUID_TYPE_VENDOR_BEGIN}};
 
 // Used to track peers that didn't use MITM and should be deleted from Peer Manager on disconnect.
-static pm_peer_id_t                 g_peerToDelete = PM_PEER_ID_INVALID;
+static pm_peer_id_t g_peerToDelete = PM_PEER_ID_INVALID;
 
 // Peer Manager handle to the currently bonded central.
-static pm_peer_id_t                 g_peerId = PM_PEER_ID_INVALID;
+static pm_peer_id_t g_peerId = PM_PEER_ID_INVALID;
 
 // Flag to indicate whether the timer routine should still check for bond button presses.
 static bool         g_checkForBondButton = true;
@@ -181,6 +181,9 @@ static pm_peer_id_t g_whitelistPeers[BLE_GAP_WHITELIST_ADDR_MAX_COUNT];
 static uint32_t     g_whitelistPeerCount;
 // Has the whitelist been updated since last updated in the Peer Manager.
 static bool         g_whitelistModified;
+
+// The number of BLE packets in flight.
+static volatile uint32_t    g_packetsInFlight;
 
 
 
@@ -360,17 +363,20 @@ int main(void)
     __debugbreak();
 
     /* Toggle LEDs. */
+    const uint32_t leds[2] = { 19, 20 };
+    for (size_t i = 0 ; i < 2 ; i++) {
+        nrf_gpio_cfg_output(leds[i]);
+    }
     while (true)
     {
-#ifdef UNDONE
-        for (int i = 2; i < LEDS_NUMBER; i++)
+        //*(volatile uint32_t*)0xFFFFFFFF; // = 0xbaadf00d;
+
+        for (int i = 0; i < 2; i++)
         {
-            bsp_board_led_invert(i);
+            nrf_gpio_pin_toggle(leds[i]);
             nrf_delay_ms(500);
         }
-#endif // UNDONE
-//        __debugbreak();
-        *(volatile uint32_t*)0xFFFFFFFF; // = 0xbaadf00d;
+
     }
 
     // Enter main loop.
@@ -494,6 +500,7 @@ static void handleBleEventsForApplication(ble_evt_t * pBleEvent)
 
                 g_whitelistModified = false;
             }
+            g_packetsInFlight = 0;
             break;
         }
 
@@ -502,10 +509,12 @@ static void handleBleEventsForApplication(ble_evt_t * pBleEvent)
             g_peerToDelete = PM_PEER_ID_INVALID;
             NRF_LOG_INFO("Connected\r\n");
             g_currBleConnection = pBleEvent->evt.gap_evt.conn_handle;
+            g_packetsInFlight = 0;
             break;
         }
 
         case BLE_EVT_TX_COMPLETE:
+            nrf_atomic_u32_sub(&g_packetsInFlight, pBleEvent->evt.common_evt.params.tx_complete.count);
             break;
 
         case BLE_GAP_EVT_SEC_PARAMS_REQUEST:
@@ -1057,6 +1066,7 @@ static uint32_t sendBlePacket(uint32_t bytesToSend)
     {
         // Data has been successfully queued up to the BLE stack so advance the read index in the queue.
         CircularQueue_CommitPeek(&g_mriToBleQueue);
+        nrf_atomic_u32_add(&g_packetsInFlight, 1);
         return bytesRead;
     }
 
@@ -1157,7 +1167,7 @@ uint32_t mriPlatform_CommHasReceiveData(void)
 
 uint32_t  mriPlatform_CommHasTransmitCompleted(void)
 {
-    return CircularQueue_IsEmpty(&g_mriToBleQueue);
+    return (CircularQueue_IsEmpty(&g_mriToBleQueue) && g_packetsInFlight == 0);
 }
 
 
@@ -1241,12 +1251,33 @@ static bool isExceptionPriorityLowEnoughToDebug(uint32_t exceptionNumber);
 static uint32_t getInterruptPriority(uint32_t exceptionNumber);
 static void recordAndClearFaultStatusBits();
 static void setPendedFromFaultBit(void);
+static bool isDebugThreadActive();
+static void setFaultDetectedFlag();
+static bool isImpreciseBusFault();
+static void advancePCToNextInstruction(ExceptionStack* pExceptionStack);
+static int isInstruction32Bit(uint16_t firstWordOfInstruction);
+static void clearFaultStatusBits();
 
 
 void mriFaultHandler(uint32_t psp, uint32_t msp, uint32_t excReturn)
 {
+    const uint32_t debugMonExceptionNumber = (uint32_t)(DebugMonitor_IRQn + 16);
     ExceptionStack* pExceptionStack = getExceptionStack(excReturn, psp, msp);
     uint32_t exceptionNumber = pExceptionStack->xpsr & 0xFF;
+    if (isDebugThreadActive() && exceptionNumber == debugMonExceptionNumber)
+    {
+        // Encountered memory fault when GDB attempted to access an invalid address.
+        // Set flag to let MRI know that its access failed and advance past the faulting instruction
+        // if it was a precise bus fault so that it doesn't just occur again on return.
+        setFaultDetectedFlag();
+        if (!isImpreciseBusFault())
+        {
+            advancePCToNextInstruction(pExceptionStack);
+        }
+        clearFaultStatusBits();
+        return;
+    }
+
     if (isExceptionPriorityLowEnoughToDebug(exceptionNumber))
     {
         // Pend DebugMon interrupt to debug the fault.
@@ -1267,10 +1298,62 @@ static ExceptionStack* getExceptionStack(uint32_t excReturn, uint32_t psp, uint3
 {
     uint32_t sp;
     if ((excReturn & 0xF) == EXC_RETURN_THREADMODE_PROCESSSTACK)
+    {
         sp = psp;
+    }
     else
+    {
         sp = msp;
+    }
     return (ExceptionStack*)sp;
+}
+
+static bool isDebugThreadActive()
+{
+    return (mriCortexMFlags & CORTEXM_FLAGS_ACTIVE_DEBUG);
+}
+
+static void setFaultDetectedFlag()
+{
+    mriCortexMFlags |= CORTEXM_FLAGS_FAULT_DURING_DEBUG;
+}
+
+static bool isImpreciseBusFault()
+{
+    return SCB->CFSR & SCB_CFSR_IMPRECISERR_Msk;
+}
+
+static void advancePCToNextInstruction(ExceptionStack* pExceptionStack)
+{
+    uint32_t* pPC = &pExceptionStack->pc;
+    uint16_t  currentInstruction = *(uint16_t*)*pPC;
+    if (isInstruction32Bit(currentInstruction))
+    {
+        *pPC += sizeof(uint32_t);
+    }
+    else
+    {
+        *pPC += sizeof(uint16_t);
+    }
+}
+
+static int isInstruction32Bit(uint16_t firstWordOfInstruction)
+{
+    uint16_t maskedOffUpper5BitsOfWord = firstWordOfInstruction & 0xF800;
+
+    /* 32-bit instructions start with 0b11101, 0b11110, 0b11111 according to page A5-152 of the
+       ARMv7-M Architecture Manual. */
+    return  (maskedOffUpper5BitsOfWord == 0xE800 ||
+             maskedOffUpper5BitsOfWord == 0xF000 ||
+             maskedOffUpper5BitsOfWord == 0xF800);
+}
+
+static void clearFaultStatusBits()
+{
+    /* Clear fault status bits by writing 1s to bits that are already set. */
+    SCB->DFSR = SCB->DFSR;
+    SCB->HFSR = SCB->HFSR;
+    SCB->CFSR = SCB->CFSR;
 }
 
 static bool isExceptionPriorityLowEnoughToDebug(uint32_t exceptionNumber)
@@ -1294,7 +1377,7 @@ static bool isExceptionPriorityLowEnoughToDebug(uint32_t exceptionNumber)
 
 static uint32_t getInterruptPriority(uint32_t exceptionNumber)
 {
-    return NVIC->IP[exceptionNumber - 16];
+    return NVIC->IP[exceptionNumber - 16] >> mriCortexMState.subPriorityBitCount;
 }
 
 static void recordAndClearFaultStatusBits(void)

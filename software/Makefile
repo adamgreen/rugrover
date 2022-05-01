@@ -65,6 +65,10 @@ SRC_FILES += \
 
 # Include folders common to all targets
 INC_FOLDERS += \
+  $(PROJ_DIR) \
+  $(MRI_PATH) \
+  $(MRI_PATH)/cmsis \
+  $(MRI_PATH)/cmsis/NRF52 \
   $(SDK_ROOT)/components/drivers_nrf/comp \
   $(SDK_ROOT)/components/drivers_nrf/twi_master \
   $(SDK_ROOT)/components/ble/ble_services/ble_ancs_c \
@@ -168,9 +172,6 @@ INC_FOLDERS += \
   $(SDK_ROOT)/components/ble/ble_services/ble_hrs \
   $(SDK_ROOT)/components/libraries/log/src \
   $(SDK_ROOT)/components/libraries/simple_timer \
-  $(PROJ_DIR) \
-  $(MRI_PATH) \
-  $(MRI_PATH)/cmsis/NRF52 \
 
 # Libraries common to all targets
 # Add in MRI debug monitor.
