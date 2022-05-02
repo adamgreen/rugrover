@@ -648,7 +648,7 @@
 // <e> GPIOTE_ENABLED - nrf_drv_gpiote - GPIOTE peripheral driver
 //==========================================================
 #ifndef GPIOTE_ENABLED
-#define GPIOTE_ENABLED 1
+#define GPIOTE_ENABLED 0
 #endif
 #if  GPIOTE_ENABLED
 // <o> GPIOTE_CONFIG_NUM_OF_LOW_POWER_EVENTS - Number of lower power input pins

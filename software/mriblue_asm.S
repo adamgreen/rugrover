@@ -31,11 +31,11 @@ HardFault_Handler:
     .size   HardFault_Handler, .-HardFault_Handler
 
 
-    .global MemManage_Handler
-    .type MemManage_Handler, function
+    .global MemoryManagement_Handler
+    .type MemoryManagement_Handler, function
     .thumb_func
-    /* extern "C" void MemManage_Handler(void); */
-MemManage_Handler:
+    /* extern "C" void MemoryManagement_Handler(void); */
+MemoryManagement_Handler:
     b       HardFault_Handler
 
 
