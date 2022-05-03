@@ -5,8 +5,8 @@ GROUP(-lgcc -lc -lnosys)
 
 MEMORY
 {
-  FLASH (rx) : ORIGIN = 0x2b000, LENGTH = 0x55000
-  RAM (rwx) :  ORIGIN = 0x20003330, LENGTH = 0xccd0
+  FLASH (rx) : ORIGIN = 0x1f000, LENGTH = 0xc000
+  RAM (rwx) :  ORIGIN = 0x20002128, LENGTH = 0x1208
 }
 
 SECTIONS
@@ -23,6 +23,10 @@ SECTIONS
     KEEP(*(.pwr_mgmt_data))
     PROVIDE(__stop_pwr_mgmt_data = .);
   } > RAM
+
+    PROVIDE(__stack = 0x20010000);
 } INSERT AFTER .data;
 
+
 INCLUDE "nrf5x_common.ld"
+

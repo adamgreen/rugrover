@@ -33,7 +33,7 @@ nrfTools/nrfjprog
 _build/
 
 # Private key file, just check in public key.
-software/priv_config.h
+mriblue_boot/priv_config.h
 
 # Signing for development machine of macos binaries after building.
 _CodeSignature/
