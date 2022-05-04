@@ -34,6 +34,7 @@
 #include <architectures/armv7-m/debug_cm3.h>
 #include <architectures/armv7-m/armv7-m.h>
 #include <core/mri.h>
+#include <core/cmd_common.h>
 #include <core/core.h>
 #include "app.h"
 #include "CircularQueue.h"
@@ -190,6 +191,16 @@ static volatile uint32_t    g_packetsInFlight;
 static CircularQueue        g_mriToBleQueue;
 static CircularQueue        g_bleToMriQueue;
 
+// Used to let main MRI thread know when SoftDevice has completed FLASH commands.
+typedef enum FlashState
+{
+    FLASH_STATE_IDLE,
+    FLASH_STATE_STARTED,
+    FLASH_STATE_COMPLETED_SUCCESS,
+    FLASH_STATE_COMPLETED_ERROR
+} FlashState;
+static volatile FlashState  g_flashState = FLASH_STATE_IDLE;
+
 
 
 // Forward Function Declarations
@@ -200,6 +211,7 @@ static void initBleStack(void);
 static void handleBleEvent(ble_evt_t * p_ble_evt);
 static void handleBleEventsForApplication(ble_evt_t * pBleEvent);
 static void handleSysEvent(uint32_t sysEvent);
+static void handleFlashEvent(uint32_t sysEvent);
 static void initPeerManager(bool eraseBonds);
 static void handlePeerManagerEvent(pm_evt_t const * pEvent);
 static void initGapParams(void);
@@ -225,6 +237,10 @@ static int enteredResetHandlerCallback(void* pvContext);
 
 
 
+// *********************************************************************************************************************
+//  Code to setup Bluetooth low energy stack, initialize the MRI debug monitor, and then jump to the application's
+//  Reset_Handler.
+// *********************************************************************************************************************
 int main(void)
 {
     initLogging();
@@ -496,6 +512,28 @@ static void handleSysEvent(uint32_t sysEvent)
     // pending flash operations in fstorage. Let fstorage process system events first,
     // so that it can report correctly to the Advertising module.
     ble_advertising_on_sys_evt(sysEvent);
+
+    handleFlashEvent(sysEvent);
+}
+
+static void handleFlashEvent(uint32_t sysEvent)
+{
+    if (g_flashState != FLASH_STATE_STARTED)
+    {
+        return;
+    }
+
+    switch (sysEvent)
+    {
+        case NRF_EVT_FLASH_OPERATION_SUCCESS:
+            g_flashState =  FLASH_STATE_COMPLETED_SUCCESS;
+            break;
+        case NRF_EVT_FLASH_OPERATION_ERROR:
+            g_flashState =  FLASH_STATE_COMPLETED_ERROR;
+            break;
+    }
+
+    return;
 }
 
 static void initPeerManager(bool eraseBonds)
@@ -1043,16 +1081,26 @@ static int enteredResetHandlerCallback(void* pvContext)
 }
 
 
+
+// *********************************************************************************************************************
+//  Nordic SDK will call the following routine if it encounters an unrecoverable error.
+// *********************************************************************************************************************
 // Break into debugger if any errors/asserts are detected at runtime.
-// This handler is called when an application error is encountered in BLE stack or application code.
 void app_error_fault_handler(uint32_t id, uint32_t pc, uint32_t info)
 {
-    { __asm volatile ("bkpt #0"); }
+    __debugbreak();
+    while (1)
+    {
+    }
 }
 
 
 
-
+// *********************************************************************************************************************
+//  Implementation of the mriPlatform_Comm* functions.
+//  The MRI debug monitor library calls these routines to communicate with GDB. The implementations below use the BLE
+//  code from above to communicate with GDB wirelessly.
+// *********************************************************************************************************************
 void mriNRF52Uart_Init(void* pParameterTokens, uint32_t debugMonPriorityLevel)
 {
     // Nothing to do here as the comm channel was already initialized by the time mriInit() was called.
@@ -1110,6 +1158,328 @@ static void waitForSpaceInQueue()
 
 
 
+// *********************************************************************************************************************
+//  Implementation of the mriPlatform_HandleGDBComand() function.
+//  The MRI debug monitor library calls this routine to allow us to handle GDB remote commands that aren't already
+//  handled by the MRI core code. For mriblue, we are going to add in the ability to handle the commands related to
+//  programming the FLASH. This will add support for GDB's "load" command.
+// *********************************************************************************************************************
+static uint32_t  handleFlashEraseCommand(Buffer* pBuffer);
+static __throws void throwIfAddressAndLengthNot4kAligned(AddressLength* pAddressLength);
+static bool is4kAligned(uint32_t value);
+static __throws void throwIfAttemptingToFlashSoftDeviceOrBootloader(AddressLength* pAddressLength);
+static uint32_t eraseFlashPages(uint32_t startPage, uint32_t pageCount);
+static uint32_t eraseFlashPage(uint32_t page);
+static uint32_t waitForFlashOperationToCompleteAndCheckForError(void);
+static uint32_t  handleFlashWriteCommand(Buffer* pBuffer);
+static uint32_t writeToFlash(Buffer* pBuffer, AddressLength* pAddressLength);
+static uint32_t alignStartOfWriteByCopyingExistingFlashData(uint8_t* pDest, uint8_t* pSrc, uint32_t unalignedStart);
+static uint32_t copyEscapedBytes(void* pvDest, size_t destSize, Buffer* pBuffer);
+static char unescapeCharIfNecessary(Buffer* pBuffer, char currentChar);
+static int isEscapePrefixChar(char charToCheck);
+static char readNextCharAndUnescape(Buffer* pBuffer);
+static char unescapeByte(char charToUnescape);
+static uint32_t  handleFlashDoneCommand(Buffer* pBuffer);
+
+/* Handle the 'vFlash' commands used by gdb.
+
+    Command Format: vFlashSSS
+    Where SSS is a variable length string indicating which Flash command is being sent to the stub.
+*/
+uint32_t  mriPlatform_HandleGDBCommand(Buffer* pBuffer)
+{
+    const char   vFlashEraseCommand[] = "vFlashErase";
+    const char   vFlashWriteCommand[] = "vFlashWrite";
+    const char   vFlashDoneCommand[] = "vFlashDone";
+
+    Buffer_Reset(pBuffer);
+    if (Buffer_MatchesString(pBuffer, vFlashEraseCommand, sizeof(vFlashEraseCommand)-1))
+    {
+        return handleFlashEraseCommand(pBuffer);
+    }
+    else if (Buffer_MatchesString(pBuffer, vFlashWriteCommand, sizeof(vFlashWriteCommand)-1))
+    {
+        return handleFlashWriteCommand(pBuffer);
+    }
+    else if (Buffer_MatchesString(pBuffer, vFlashDoneCommand, sizeof(vFlashDoneCommand)-1))
+    {
+        return handleFlashDoneCommand(pBuffer);
+    }
+    else
+    {
+        // Returning 0 means that MRI should handle this command instead.
+        return 0;
+    }
+}
+
+/* Handle the 'vFlashErase' command which erases the specified pages in FLASH.
+
+    Command Format:     vFlashErase:AAAAAAAA,LLLLLLLL
+    Response Format:    OK
+
+    Where AAAAAAAA is the hexadecimal representation of the address where the erase is to start.
+          LLLLLLLL is the hexadecimal representation of the length (in bytes) of the erase to be conducted.
+*/
+static uint32_t  handleFlashEraseCommand(Buffer* pBuffer)
+{
+    AddressLength  addressLength;
+
+    __try
+    {
+        __throwing_func( ThrowIfNextCharIsNotEqualTo(pBuffer, ':') );
+        __throwing_func( ReadAddressAndLengthArguments(pBuffer, &addressLength) );
+        __throwing_func( throwIfAddressAndLengthNot4kAligned(&addressLength) );
+        __throwing_func( throwIfAttemptingToFlashSoftDeviceOrBootloader(&addressLength) );
+    }
+    __catch
+    {
+        PrepareStringResponse(MRI_ERROR_INVALID_ARGUMENT);
+        return HANDLER_RETURN_HANDLED;
+    }
+
+    uint32_t startPage = addressLength.address / 4096;
+    uint32_t pageCount = addressLength.length / 4096;
+    uint32_t errorCode = eraseFlashPages(startPage, pageCount);
+    if (errorCode != NRF_SUCCESS)
+    {
+        PrepareStringResponse(MRI_ERROR_MEMORY_ACCESS_FAILURE);
+        return HANDLER_RETURN_HANDLED;
+    }
+
+    PrepareStringResponse("OK");
+    return HANDLER_RETURN_HANDLED;
+}
+
+static __throws void throwIfAddressAndLengthNot4kAligned(AddressLength* pAddressLength)
+{
+    if (!is4kAligned(pAddressLength->address) || !is4kAligned(pAddressLength->length))
+    {
+        __throw(invalidArgumentException);
+    }
+}
+
+static bool is4kAligned(uint32_t value)
+{
+    return (value & (4096-1)) == 0;
+}
+
+static __throws void throwIfAttemptingToFlashSoftDeviceOrBootloader(AddressLength* pAddressLength)
+{
+    if (pAddressLength->address < APP_START)
+    {
+        __throw(invalidArgumentException);
+    }
+}
+
+static uint32_t eraseFlashPages(uint32_t startPage, uint32_t pageCount)
+{
+    for (uint32_t i = 0 ; i < pageCount ; i++)
+    {
+        uint32_t errorCode = eraseFlashPage(startPage+i);
+        if (errorCode != NRF_SUCCESS)
+        {
+            return errorCode;
+        }
+    }
+
+    return NRF_SUCCESS;
+}
+
+static uint32_t eraseFlashPage(uint32_t page)
+{
+    g_flashState = FLASH_STATE_STARTED;
+
+    uint32_t errorCode = sd_flash_page_erase(page);
+    if (errorCode != NRF_SUCCESS)
+    {
+        g_flashState = FLASH_STATE_IDLE;
+        return errorCode;
+    }
+    errorCode = waitForFlashOperationToCompleteAndCheckForError();
+
+    g_flashState = FLASH_STATE_IDLE;
+
+    return errorCode;
+}
+
+static uint32_t waitForFlashOperationToCompleteAndCheckForError(void)
+{
+    while (g_flashState == FLASH_STATE_STARTED)
+    {
+        // Waiting for FLASH command to complete down in the SoftDevice.
+    }
+    if (g_flashState == FLASH_STATE_COMPLETED_ERROR)
+    {
+        return NRF_ERROR_BUSY;
+    }
+
+    return NRF_SUCCESS;
+}
+
+/* Handle the 'vFlashWrite' command which writes to the specified location in FLASH.
+
+    Command Format:     vFlashWrite:AAAAAAAA:XX...
+    Response Format:    OK
+
+    Where AAAAAAAA is the hexadecimal representation of the address where the write is to start.
+          xx is the byte in escaped binary format of the first byte to be written to the specified location.
+          ... continue returning the rest of the bytes in escaped binary format.
+*/
+static uint32_t  handleFlashWriteCommand(Buffer* pBuffer)
+{
+    AddressLength  addressLength = {0, 0};
+
+    __try
+    {
+        __throwing_func( ThrowIfNextCharIsNotEqualTo(pBuffer, ':') );
+        __throwing_func( addressLength.address = ReadUIntegerArgument(pBuffer) );
+        __throwing_func( ThrowIfNextCharIsNotEqualTo(pBuffer, ':') );
+        __throwing_func( throwIfAttemptingToFlashSoftDeviceOrBootloader(&addressLength) );
+    }
+    __catch
+    {
+        PrepareStringResponse(MRI_ERROR_INVALID_ARGUMENT);
+        return HANDLER_RETURN_HANDLED;
+    }
+
+    uint32_t errorCode = writeToFlash(pBuffer, &addressLength);
+    if (errorCode != NRF_SUCCESS)
+    {
+        PrepareStringResponse(MRI_ERROR_MEMORY_ACCESS_FAILURE);
+        return HANDLER_RETURN_HANDLED;
+    }
+
+    PrepareStringResponse("OK");
+    return HANDLER_RETURN_HANDLED;
+}
+
+static uint32_t writeToFlash(Buffer* pBuffer, AddressLength* pAddressLength)
+{
+    // Need to align both the address and length to 4-bytes.
+    uint32_t startAddress = pAddressLength->address;
+    uint32_t alignedStartAddress = startAddress & ~(sizeof(uint32_t)-1);
+
+    // Copy bytes into 4-byte aligned buffer on the stack.
+    uint32_t wordBuffer[CORTEXM_PACKET_BUFFER_SIZE/sizeof(uint32_t)+2];
+
+    // Align start of FLASH write to word boundary by padding with existing bytes from beginning of first word in FLASH.
+    uint32_t bytesLeft = sizeof(wordBuffer);
+    uint8_t* pDest = (uint8_t*)wordBuffer;
+    uint32_t size = alignStartOfWriteByCopyingExistingFlashData(pDest, (uint8_t*)alignedStartAddress, startAddress);
+    bytesLeft -= size;
+    pDest += size;
+
+    // Copy the escaped bytes provided by GDB into aligned buffer.
+    size = copyEscapedBytes(pDest, bytesLeft, pBuffer);
+    bytesLeft -= size;
+    pDest += size;
+
+    // Pad last few bytes with 0xFF to make the length of the write word aligned.
+    uint32_t endAddress = startAddress + size;
+    uint32_t alignedEndAddress = (endAddress+sizeof(uint32_t)-1) & ~(sizeof(uint32_t)-1);
+    memset(pDest, 0xFF, alignedEndAddress-endAddress);
+    uint32_t wordCount = (alignedEndAddress-alignedStartAddress)/sizeof(uint32_t);
+
+    g_flashState = FLASH_STATE_STARTED;
+
+    uint32_t errorCode = sd_flash_write((uint32_t*)alignedStartAddress, wordBuffer, wordCount);
+    if (errorCode != NRF_SUCCESS)
+    {
+        g_flashState = FLASH_STATE_IDLE;
+        return errorCode;
+    }
+    errorCode = waitForFlashOperationToCompleteAndCheckForError();
+
+    g_flashState = FLASH_STATE_IDLE;
+
+    return errorCode;
+}
+
+static uint32_t alignStartOfWriteByCopyingExistingFlashData(uint8_t* pDest, uint8_t* pSrc, uint32_t unalignedStart)
+{
+    uint8_t* pStart = pDest;
+    while (pSrc < (uint8_t*)unalignedStart)
+    {
+        *pDest++ = *pSrc++;
+    }
+
+    return pDest - pStart;
+}
+
+static uint32_t copyEscapedBytes(void* pvDest, size_t destSize, Buffer* pBuffer)
+{
+    uint8_t* pStart = pvDest;
+    uint8_t* pDest = pvDest;
+    while (destSize-- > 0)
+    {
+        char currChar;
+
+        // Keep reading bytes until we reach the end of the source buffer.
+        __try
+        {
+            __throwing_func( currChar = Buffer_ReadChar(pBuffer) );
+        }
+        __catch
+        {
+            break;
+        }
+
+        // UNDONE: Could catch this error as well.
+        currChar = unescapeCharIfNecessary(pBuffer, currChar);
+        *pDest++ = currChar;
+    }
+    return pDest - pStart;
+}
+
+static char unescapeCharIfNecessary(Buffer* pBuffer, char currentChar)
+{
+    if (isEscapePrefixChar(currentChar))
+        return readNextCharAndUnescape(pBuffer);
+
+    return currentChar;
+}
+
+static int isEscapePrefixChar(char charToCheck)
+{
+    return charToCheck == '}';
+}
+
+static char readNextCharAndUnescape(Buffer* pBuffer)
+{
+    char nextChar;
+
+    __try
+        nextChar = Buffer_ReadChar(pBuffer);
+    __catch
+        __rethrow_and_return('\0');
+
+    return unescapeByte(nextChar);
+}
+
+static char unescapeByte(char charToUnescape)
+{
+    return charToUnescape ^ 0x20;
+}
+
+/* Handle the 'vFlashDone' command which lets us know that the FLASH update is now complete.
+
+    Command Format:     vFlashDone
+    Response Format:    OK
+*/
+static uint32_t  handleFlashDoneCommand(Buffer* pBuffer)
+{
+    /* We do all of the work as the vFlashErase/vFlashWrite commands come in so there is nothing to do here. */
+    PrepareStringResponse("OK");
+    return HANDLER_RETURN_HANDLED;
+}
+
+
+
+// *********************************************************************************************************************
+//  Implementation of the mriFaultHandler() function. This routine is called from the assembly language based
+//  fault handlers found in mriblue_asm.S when a fault is detected in the code. mriFaultHandler() actions depend on
+//  whether the fault was detected in low or high priority code or caused by a memory read/write initiated by GDB.
+// *********************************************************************************************************************
 /* Lower nibble of EXC_RETURN in LR will have one of these values if interrupted code was running in thread mode.
    Using PSP. */
 #define EXC_RETURN_THREADMODE_PROCESSSTACK  0xD
@@ -1159,7 +1529,6 @@ static bool isImpreciseBusFault();
 static void advancePCToNextInstruction(ExceptionStack* pExceptionStack);
 static int isInstruction32Bit(uint16_t firstWordOfInstruction);
 static void clearFaultStatusBits();
-
 
 // This handler will be called from the fault handlers (Hard Fault, etc.)
 // If the fault occurred in low priority code that pend a DebugMon interrupt so that MRI can be used to debug it.
