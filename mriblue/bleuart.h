@@ -1,4 +1,4 @@
-/*  Copyright (C) 2019  Adam Green (https://github.com/adamgreen)
+/*  Copyright (C) 2022  Adam Green (https://github.com/adamgreen)
 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License
@@ -42,6 +42,7 @@ void workerMain(void);
 
 int bleuartConnect(const char* pName);
 int bleuartDisconnect();
+int bleuartAbortConnectionAttempt();
 int bleuartStartDeviceDiscovery();
 int bleuartGetDiscoveredDeviceCount(size_t* pCount);
 int bleuartGetDiscoveredDeviceName(size_t deviceIndex, const char** ppDeviceName);

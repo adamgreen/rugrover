@@ -1,4 +1,4 @@
-/*  Copyright (C) 2019  Adam Green (https://github.com/adamgreen)
+/*  Copyright (C) 2022  Adam Green (https://github.com/adamgreen)
 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License
@@ -60,6 +60,7 @@ static FILE*             g_pLogFile;
 // The Control+C handler and workerMain both need to access these globals.
 static volatile int      g_controlCdetected;
 static int               g_listenSocket = -1;
+static volatile int      g_isBleConnected = 0;
 
 
 static int parseCommandLine(CommandLineParams* pParams, int argc, char** ppArgs);
@@ -160,7 +161,6 @@ static int parseLogFilename(CommandLineParams* pParams, int argc, char** ppArgs)
 
 void workerMain(void)
 {
-    int                   isBleConnected = 0;
     int                   result = -1;
     int                   socket = -1;
 
@@ -189,7 +189,7 @@ void workerMain(void)
         socklen_t          remoteAddressSize = sizeof(remoteAddress);
         uint8_t            buffer[4096];
 
-        if (!isBleConnected)
+        if (!g_isBleConnected)
         {
             printf("Attempting to connect to MRIBLUE device...\n");
             result = bleuartConnect(NULL);
@@ -199,7 +199,7 @@ void workerMain(void)
                 goto Error;
             }
             printf("MRIBLUE device connected!\n");
-            isBleConnected = 1;
+            g_isBleConnected = 1;
         }
         if (socket == -1)
         {
@@ -216,14 +216,14 @@ void workerMain(void)
             }
         }
 
-        while (socket != -1 && isBleConnected && !g_controlCdetected)
+        while (socket != -1 && g_isBleConnected && !g_controlCdetected)
         {
             /* Forward data received from BLEUART to socket. */
             result = bleuartReceiveData(buffer, sizeof(buffer), &bytesRead);
             if (result == BLEUART_ERROR_NOT_CONNECTED)
             {
                 printf("BLE connection lost!\n");
-                isBleConnected = 0;
+                g_isBleConnected = 0;
                 break;
             }
             if (bytesRead > 0)
@@ -255,7 +255,7 @@ void workerMain(void)
                 if (result == BLEUART_ERROR_NOT_CONNECTED)
                 {
                     printf("BLE connection lost!\n");
-                    isBleConnected = 0;
+                    g_isBleConnected = 0;
                     break;
                 }
                 else if (result != BLEUART_ERROR_NONE)
@@ -288,6 +288,10 @@ static void controlCHandler(int arg)
         int listenSocket = g_listenSocket;
         *(volatile int*)&g_listenSocket = -1;
         close(listenSocket);
+    }
+    if (!g_isBleConnected)
+    {
+        bleuartAbortConnectionAttempt();
     }
 }
 

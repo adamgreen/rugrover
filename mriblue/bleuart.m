@@ -1,4 +1,4 @@
-/*  Copyright (C) 2021  Adam Green (https://github.com/adamgreen)
+/*  Copyright (C) 2022  Adam Green (https://github.com/adamgreen)
 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License
@@ -687,6 +687,12 @@ int bleuartDisconnect()
     sleep(1);
 
     return [g_appDelegate error];
+}
+
+int bleuartAbortConnectionAttempt()
+{
+    [g_appDelegate performSelectorOnMainThread:@selector(signalConnectionError) withObject:nil waitUntilDone:YES];
+    return BLEUART_ERROR_NONE;
 }
 
 int bleuartStartDeviceDiscovery()
