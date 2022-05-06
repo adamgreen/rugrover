@@ -29,6 +29,7 @@
 #define NRF_LOG_MODULE_NAME "APP"
 #include <nrf_log.h>
 #include <nrf_log_ctrl.h>
+#include <nrf_nvmc.h>
 #include <peer_manager.h>
 #include <softdevice_handler.h>
 #include <architectures/armv7-m/debug_cm3.h>
@@ -200,6 +201,15 @@ typedef enum FlashState
     FLASH_STATE_COMPLETED_ERROR
 } FlashState;
 static volatile FlashState  g_flashState = FLASH_STATE_IDLE;
+
+// Status of whether a high priority crash should be dumped to FLASH or debugged.
+typedef enum CrashState
+{
+    CRASH_STATE_NONE,
+    CRASH_STATE_DUMPING,
+    CRASH_STATE_DEBUGGING
+} CrashState;
+static volatile CrashState  g_crashState = CRASH_STATE_NONE;
 
 
 
@@ -1237,8 +1247,8 @@ static uint32_t  handleFlashEraseCommand(Buffer* pBuffer)
         return HANDLER_RETURN_HANDLED;
     }
 
-    uint32_t startPage = addressLength.address / 4096;
-    uint32_t pageCount = addressLength.length / 4096;
+    uint32_t startPage = addressLength.address / FLASH_PAGE_SIZE;
+    uint32_t pageCount = addressLength.length / FLASH_PAGE_SIZE;
     uint32_t errorCode = eraseFlashPages(startPage, pageCount);
     if (errorCode != NRF_SUCCESS)
     {
@@ -1533,7 +1543,7 @@ static void clearFaultStatusBits();
 // This handler will be called from the fault handlers (Hard Fault, etc.)
 // If the fault occurred in low priority code that pend a DebugMon interrupt so that MRI can be used to debug it.
 // Just infinite loops if it was in a high priority interrupt since MRI can't debug those type of faults.
-void mriFaultHandler(uint32_t psp, uint32_t msp, uint32_t excReturn)
+int mriFaultHandler(uint32_t psp, uint32_t msp, uint32_t excReturn)
 {
     const uint32_t debugMonExceptionNumber = (uint32_t)(DebugMonitor_IRQn + 16);
     ExceptionStack* pExceptionStack = getExceptionStack(excReturn, psp, msp);
@@ -1549,7 +1559,7 @@ void mriFaultHandler(uint32_t psp, uint32_t msp, uint32_t excReturn)
             advancePCToNextInstruction(pExceptionStack);
         }
         clearFaultStatusBits();
-        return;
+        return 0;
     }
 
     if (isExceptionPriorityLowEnoughToDebug(exceptionNumber))
@@ -1558,13 +1568,13 @@ void mriFaultHandler(uint32_t psp, uint32_t msp, uint32_t excReturn)
         recordAndClearFaultStatusBits();
         setPendedFromFaultBit();
         setMonitorPending();
+        return 0;
     }
     else
     {
-        // UNDONE: Come up with a better way to handle these.
-        while (true)
-        {
-        }
+        // Exception occurred in code too high priority to debug so start a crash dump.
+        g_crashState = CRASH_STATE_DUMPING;
+        return -1;
     }
 }
 
@@ -1672,4 +1682,81 @@ static void recordAndClearFaultStatusBits(void)
 static void setPendedFromFaultBit(void)
 {
     mriCortexMFlags |= CORTEXM_FLAGS_PEND_FROM_FAULT;
+}
+
+
+
+
+// *********************************************************************************************************************
+//  Wrap of the mriPlatform_EnteringDebugger() function used to generate crash dumps and later facilitate
+//  debugging them. This function is used due to the location of where it is called by mriDebugException().
+// *********************************************************************************************************************
+// Magic value placed in CrashDumpContext::magic to indicate that context contents are valid.
+#define CRASH_DUMP_CONTEXT_MAGIC    0xADA3ADA3
+
+typedef struct CrashDumpContext
+{
+    uint32_t            magic;
+    uint32_t            taskSP;
+    uint32_t            sp;
+    uint32_t            exceptionNumber;
+    uint32_t            dfsr;
+    uint32_t            hfsr;
+    uint32_t            cfsr;
+    uint32_t            mmfar;
+    uint32_t            bfar;
+    uint32_t            originalPC;
+    uint32_t            originalBasePriority;
+    uint32_t            registers[CONTEXT_SIZE];
+    PlatformTrapReason  reason;
+} CrashDumpContext;
+
+
+static void writeCrashDumpToFlash();
+static uint32_t wordCountRoundedUp(uint32_t val);
+
+void __wrap_mriPlatform_EnteringDebugger(void)
+{
+    void __real_mriPlatform_EnteringDebugger();
+
+    if (g_crashState == CRASH_STATE_DUMPING)
+    {
+        writeCrashDumpToFlash();
+        NVIC_SystemReset();
+    }
+    __real_mriPlatform_EnteringDebugger();
+}
+
+static void writeCrashDumpToFlash()
+{
+    for (uint32_t addr = CRASH_DUMP_CONTEXT ; addr < APP_START ; addr += FLASH_PAGE_SIZE)
+    {
+        nrf_nvmc_page_erase(addr);
+    }
+    nrf_nvmc_write_words(CRASH_DUMP_RAM, (uint32_t*)START_OF_RAM, (END_OF_RAM-START_OF_RAM)/sizeof(uint32_t));
+
+    CrashDumpContext dumpContext;
+    dumpContext.magic = CRASH_DUMP_CONTEXT_MAGIC;
+    dumpContext.reason = mriCortexMState.reason;
+    dumpContext.taskSP = mriCortexMState.taskSP;
+    dumpContext.sp = mriCortexMState.sp;
+    dumpContext.exceptionNumber = mriCortexMState.exceptionNumber;
+    dumpContext.dfsr = mriCortexMState.dfsr;
+    dumpContext.hfsr = mriCortexMState.hfsr;
+    dumpContext.cfsr = mriCortexMState.cfsr;
+    dumpContext.mmfar = mriCortexMState.mmfar;
+    dumpContext.bfar = mriCortexMState.bfar;
+    dumpContext.originalPC = mriCortexMState.originalPC;
+    dumpContext.originalBasePriority = mriCortexMState.originalBasePriority;
+    for (size_t i = 0 ; i < sizeof(dumpContext.registers)/sizeof(dumpContext.registers[0]) ; i++)
+    {
+        dumpContext.registers[i] = Context_Get(&mriCortexMState.context, i);
+    }
+
+    nrf_nvmc_write_words(CRASH_DUMP_CONTEXT, (uint32_t*)&dumpContext, wordCountRoundedUp(sizeof(dumpContext)));
+}
+
+static uint32_t wordCountRoundedUp(uint32_t val)
+{
+    return (val + sizeof(uint32_t) - 1) / sizeof(uint32_t);
 }

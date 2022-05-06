@@ -43,6 +43,7 @@ SRC_FILES += \
   $(SDK_ROOT)/components/ble/ble_services/ble_nus/ble_nus.c \
   $(SDK_ROOT)/components/drivers_nrf/timer/nrf_drv_timer.c \
   $(SDK_ROOT)/components/libraries/simple_timer/app_simple_timer.c \
+  $(SDK_ROOT)/components/drivers_nrf/hal/nrf_nvmc.c \
   $(PROJ_DIR)/main.c \
   $(PROJ_DIR)/CircularQueue.c \
   $(PROJ_DIR)/mriblue_asm.S \
@@ -238,7 +239,7 @@ LDFLAGS += -mfloat-abi=hard -mfpu=fpv4-sp-d16
 LDFLAGS += -Wl,--gc-sections
 # use newlib in nano version
 LDFLAGS += --specs=nano.specs -lc -lnosys
-LDFLAGS += -Wl,--allow-multiple-definition
+LDFLAGS += -Wl,--allow-multiple-definition,--wrap=mriPlatform_EnteringDebugger
 
 .PHONY: $(TARGETS) default all clean help flash flash_softdevice sdk mri
 

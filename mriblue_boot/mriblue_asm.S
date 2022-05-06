@@ -26,7 +26,11 @@ HardFault_Handler:
     mov     r2, lr
     push    {r12, lr}
     bl      mriFaultHandler
+    movs    r0, r0
+    bmi     1$
     pop     {r12, pc}
+1$: pop     {r12, lr}
+    b       mriExceptionHandler
     .pool
     .size   HardFault_Handler, .-HardFault_Handler
 
