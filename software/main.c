@@ -11,8 +11,12 @@
     GNU General Public License for more details.
 */
 /* Beginnings of firmware for RugRover robot. */
+#include <app_error.h>
 #include <nrf_delay.h>
 #include <nrf_gpio.h>
+#include <nrf_drv_gpiote.h>
+
+static void gpioteHandler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action);
 
 int main(void)
 {
@@ -21,6 +25,22 @@ int main(void)
     for (size_t i = 0 ; i < 2 ; i++) {
         nrf_gpio_cfg_output(leds[i]);
     }
+
+    /* Interrupt on button 3 presses. */
+    const uint32_t button3Pin = 15;
+    nrf_drv_gpiote_in_config_t gpioteConfig =
+    {
+        .sense = NRF_GPIOTE_POLARITY_HITOLO,
+        .pull = NRF_GPIO_PIN_PULLUP,
+        .is_watcher = false,
+        .hi_accuracy = false
+    };
+    uint32_t errorCode = nrf_drv_gpiote_init();
+    APP_ERROR_CHECK(errorCode);
+    errorCode = nrf_drv_gpiote_in_init(button3Pin, &gpioteConfig, gpioteHandler);
+    APP_ERROR_CHECK(errorCode);
+    nrf_drv_gpiote_in_event_enable(button3Pin, true);
+
     while (true)
     {
         //*(volatile uint32_t*)0xFFFFFFFF; // = 0xbaadf00d;
@@ -30,6 +50,11 @@ int main(void)
             nrf_gpio_pin_toggle(leds[i]);
             nrf_delay_ms(500);
         }
-
     }
+}
+
+static void gpioteHandler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
+{
+    // Crash when button 3 is pressed.
+    *(volatile uint32_t*)0xFFFFFFFF; // = 0xbaadf00d;
 }

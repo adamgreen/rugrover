@@ -648,7 +648,7 @@
 // <e> GPIOTE_ENABLED - nrf_drv_gpiote - GPIOTE peripheral driver
 //==========================================================
 #ifndef GPIOTE_ENABLED
-#define GPIOTE_ENABLED 0
+#define GPIOTE_ENABLED 1
 #endif
 #if  GPIOTE_ENABLED
 // <o> GPIOTE_CONFIG_NUM_OF_LOW_POWER_EVENTS - Number of lower power input pins
@@ -670,7 +670,7 @@
 // <7=> 7
 
 #ifndef GPIOTE_CONFIG_IRQ_PRIORITY
-#define GPIOTE_CONFIG_IRQ_PRIORITY 7
+#define GPIOTE_CONFIG_IRQ_PRIORITY 2
 #endif
 
 // <e> GPIOTE_CONFIG_LOG_ENABLED - Enables logging in the module.
