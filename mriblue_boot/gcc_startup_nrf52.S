@@ -432,7 +432,7 @@ ForwardStub:
     .section .text.\handler
     .type   \handler, %function
 \handler:
-    mov     r0, #4*\number
+    mov     r0, #4*(\number)
     b.n     ForwardStub
     .size   \handler, . - \handler
     .endm
