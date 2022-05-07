@@ -187,7 +187,7 @@ CFLAGS += -DNRF52_PAN_55
 CFLAGS += -DS132
 CFLAGS += -mcpu=cortex-m4
 CFLAGS += -mthumb -mabi=aapcs
-CFLAGS +=  -Wall -Werror -Os -g3
+CFLAGS += -Wall -Werror -Os -g3
 CFLAGS += -mfloat-abi=hard -mfpu=fpv4-sp-d16
 # keep every function in separate section, this allows linker to discard unused ones
 CFLAGS += -ffunction-sections -fdata-sections -fno-strict-aliasing
@@ -239,7 +239,21 @@ LDFLAGS += -mfloat-abi=hard -mfpu=fpv4-sp-d16
 LDFLAGS += -Wl,--gc-sections
 # use newlib in nano version
 LDFLAGS += --specs=nano.specs -lc -lnosys
-LDFLAGS += -Wl,--allow-multiple-definition,--wrap=mriPlatform_EnteringDebugger
+LDFLAGS += -Wl,--allow-multiple-definition
+LDFLAGS += -Wl,--wrap=mriPlatform_EnteringDebugger
+LDFLAGS += -Wl,--wrap=mriPlatform_MemRead32
+LDFLAGS += -Wl,--wrap=mriPlatform_MemRead16
+LDFLAGS += -Wl,--wrap=mriPlatform_MemRead8
+LDFLAGS += -Wl,--wrap=mriPlatform_MemWrite32
+LDFLAGS += -Wl,--wrap=mriPlatform_MemWrite16
+LDFLAGS += -Wl,--wrap=mriPlatform_MemWrite8
+LDFLAGS += -Wl,--wrap=mriPlatform_EnableSingleStep
+LDFLAGS += -Wl,--wrap=mriPlatform_SetHardwareBreakpointOfGdbKind
+LDFLAGS += -Wl,--wrap=mriPlatform_SetHardwareBreakpoint
+LDFLAGS += -Wl,--wrap=mriPlatform_ClearHardwareBreakpointOfGdbKind
+LDFLAGS += -Wl,--wrap=mriPlatform_ClearHardwareBreakpoint
+LDFLAGS += -Wl,--wrap=mriPlatform_SetHardwareWatchpoint
+LDFLAGS += -Wl,--wrap=mriPlatform_ClearHardwareWatchpoint
 
 .PHONY: $(TARGETS) default all clean help flash flash_softdevice sdk mri
 

@@ -37,6 +37,7 @@
 #include <core/mri.h>
 #include <core/cmd_common.h>
 #include <core/core.h>
+#include <core/gdb_console.h>
 #include "app.h"
 #include "CircularQueue.h"
 
@@ -158,6 +159,9 @@
 #define STATIC_PASSKEY                  "123456"
 #endif
 
+// Magic value placed in CrashDumpContext::magic to indicate that context contents are valid.
+#define CRASH_DUMP_CONTEXT_MAGIC    0xADA3ADA3
+
 
 
 // Nordic UART service.
@@ -211,6 +215,25 @@ typedef enum CrashState
 } CrashState;
 static volatile CrashState  g_crashState = CRASH_STATE_NONE;
 
+// The current state and context of MRI and the CPU are copied into this structure which is then placed into FLASH as
+// part of the crash dump.
+typedef struct CrashDumpContext
+{
+    uint32_t            taskSP;
+    uint32_t            sp;
+    uint32_t            exceptionNumber;
+    uint32_t            dfsr;
+    uint32_t            hfsr;
+    uint32_t            cfsr;
+    uint32_t            mmfar;
+    uint32_t            bfar;
+    uint32_t            registers[CONTEXT_SIZE];
+    PlatformTrapReason  reason;
+    // Make this the last word in the context so that it is written to FLASH last. It is used to flag that the rest of
+    // the crash dump is now valid.
+    uint32_t            magic;
+} CrashDumpContext;
+
 
 
 // Forward Function Declarations
@@ -243,7 +266,11 @@ static void checkForButtonPress();
 static void startAdvertising(void);
 static void getPeerList(pm_peer_id_t* pPeers, uint32_t* pCount);
 static void elevateInterruptPriorities(void);
+static bool isValidCrashDumpInFlash(void);
+static void debugCrashDump(void);
+static void transferControlToApplicationToDebug(void);
 static int enteredResetHandlerCallback(void* pvContext);
+static void copyContextFromFlash(ContextSection* pContextSection);
 
 
 
@@ -274,27 +301,16 @@ int main(void)
     startTimers();
     startAdvertising();
 
-    // Find the location of the Reset_Handler for the main application which occurs a bit higher in the FLASH.
-    uint32_t* pAppIsrVectors = (uint32_t*)APP_START;
-    uint32_t resetHandler = pAppIsrVectors[1];
-    if (resetHandler == 0xFFFFFFFF)
+    if (isValidCrashDumpInFlash())
     {
-        // The Reset_Handler is 0xFFFFFFFF which means that the first page of the application code has been erased
-        // and contains no valid data so just stop here.
-        __debugbreak();
-        while (1)
-        {
-        }
+        // Have a crash dump to be debugged.
+        debugCrashDump();
     }
-
-    // Set the initial breakpoint at the beginning of the app's Reset_Handler, allowing the developer to set breakpoints
-    // of interest. This is early enough to set breakpoints in global constructors and is the only address this
-    // bootloader really knows about in the application. It doesn't know the location of main() for example.
-    mriCore_SetTempBreakpoint(resetHandler, enteredResetHandlerCallback, NULL);
-
-    // Jump to the application's Reset_Handler.
-    void (*pResetHandler)(void) = (void (*)(void))resetHandler;
-    pResetHandler();
+    else
+    {
+        // Jump to the main application further up in FLASH and start debugging it instead.
+        transferControlToApplicationToDebug();
+    }
 
     // Should never return here but if we do, halt.
     __debugbreak();
@@ -761,7 +777,7 @@ static void nordicUartServiceHandler(ble_nus_t * pNordicUartService, uint8_t * p
 {
     uint32_t bytesWritten = CircularQueue_Write(&g_bleToMriQueue, pData, length);
     ASSERT ( bytesWritten == length );
-    if (!isAlreadyDebugging())
+    if (g_crashState == CRASH_STATE_NONE && !isAlreadyDebugging())
     {
         // GDB is sending a command, probably a CTRL+C, so pend entry into DebugMon handler.
         setControlCFlag();
@@ -1084,6 +1100,58 @@ static void elevateInterruptPriorities(void)
     NVIC_SetPriority(TIMER1_IRQn, MRIBLUE_PRIORITY-1);
 }
 
+static bool isValidCrashDumpInFlash(void)
+{
+    CrashDumpContext* pDumpContext = (CrashDumpContext*)CRASH_DUMP_CONTEXT;
+    return pDumpContext->magic == CRASH_DUMP_CONTEXT_MAGIC;
+}
+
+static void debugCrashDump(void)
+{
+    uint32_t registers[CONTEXT_SIZE];
+    ContextSection contextSection =
+    {
+        .pValues = registers,
+        .count = sizeof(registers)/sizeof(registers[0])
+    };
+
+    g_crashState = CRASH_STATE_DEBUGGING;
+    copyContextFromFlash(&contextSection);
+    while (true)
+    {
+        mriDebugException(&mriCortexMState.context);
+        WriteStringToGdbConsole("\r\n"
+                                "Can't continue execution.\r\n"
+                                "You are debugging a crash dump.\r\n"
+                                "Send \"monitor reset\" command to clear crash dump.\r\n");
+    }
+}
+
+static void transferControlToApplicationToDebug(void)
+{
+    // Find the location of the Reset_Handler for the main application which occurs a bit higher in the FLASH.
+    uint32_t* pAppIsrVectors = (uint32_t*)APP_START;
+    uint32_t resetHandler = pAppIsrVectors[1];
+    if (resetHandler == 0xFFFFFFFF)
+    {
+        // The Reset_Handler is 0xFFFFFFFF which means that the first page of the application code has been erased
+        // and contains no valid data so just stop here.
+        __debugbreak();
+        while (1)
+        {
+        }
+    }
+
+    // Set the initial breakpoint at the beginning of the app's Reset_Handler, allowing the developer to set breakpoints
+    // of interest. This is early enough to set breakpoints in global constructors and is the only address this
+    // bootloader really knows about in the application. It doesn't know the location of main() for example.
+    mriCore_SetTempBreakpoint(resetHandler, enteredResetHandlerCallback, NULL);
+
+    // Jump to the application's Reset_Handler.
+    void (*pResetHandler)(void) = (void (*)(void))resetHandler;
+    pResetHandler();
+}
+
 static int enteredResetHandlerCallback(void* pvContext)
 {
     // We want MRI to stop at this breakpoint so return 0 to not resume execution.
@@ -1190,6 +1258,7 @@ static int isEscapePrefixChar(char charToCheck);
 static char readNextCharAndUnescape(Buffer* pBuffer);
 static char unescapeByte(char charToUnescape);
 static uint32_t  handleFlashDoneCommand(Buffer* pBuffer);
+static uint32_t clearCrashDumpAndReset(void);
 
 /* Handle the 'vFlash' commands used by gdb.
 
@@ -1201,6 +1270,7 @@ uint32_t  mriPlatform_HandleGDBCommand(Buffer* pBuffer)
     const char   vFlashEraseCommand[] = "vFlashErase";
     const char   vFlashWriteCommand[] = "vFlashWrite";
     const char   vFlashDoneCommand[] = "vFlashDone";
+    const char   monitorResetCommand[] = "qRcmd,7265736574";
 
     Buffer_Reset(pBuffer);
     if (Buffer_MatchesString(pBuffer, vFlashEraseCommand, sizeof(vFlashEraseCommand)-1))
@@ -1214,6 +1284,10 @@ uint32_t  mriPlatform_HandleGDBCommand(Buffer* pBuffer)
     else if (Buffer_MatchesString(pBuffer, vFlashDoneCommand, sizeof(vFlashDoneCommand)-1))
     {
         return handleFlashDoneCommand(pBuffer);
+    }
+    else if (Buffer_MatchesString(pBuffer, monitorResetCommand, sizeof(monitorResetCommand)-1))
+    {
+        return clearCrashDumpAndReset();
     }
     else
     {
@@ -1483,6 +1557,24 @@ static uint32_t  handleFlashDoneCommand(Buffer* pBuffer)
     return HANDLER_RETURN_HANDLED;
 }
 
+static uint32_t clearCrashDumpAndReset(void)
+{
+    if (g_crashState != CRASH_STATE_DEBUGGING)
+    {
+        // Let existing MRI code handle reset request if not debugging a crash dump.
+        return 0;
+    }
+
+    sd_flash_page_erase(CRASH_DUMP_CONTEXT/FLASH_PAGE_SIZE);
+
+    RequestResetOnNextContinue();
+    WriteStringToGdbConsole("Crash dump cleared. Will reset on next continue.\r\n");
+    PrepareStringResponse("OK");
+
+    return HANDLER_RETURN_HANDLED;
+}
+
+
 
 
 // *********************************************************************************************************************
@@ -1691,29 +1783,12 @@ static void setPendedFromFaultBit(void)
 //  Wrap of the mriPlatform_EnteringDebugger() function used to generate crash dumps and later facilitate
 //  debugging them. This function is used due to the location of where it is called by mriDebugException().
 // *********************************************************************************************************************
-// Magic value placed in CrashDumpContext::magic to indicate that context contents are valid.
-#define CRASH_DUMP_CONTEXT_MAGIC    0xADA3ADA3
-
-typedef struct CrashDumpContext
-{
-    uint32_t            magic;
-    uint32_t            taskSP;
-    uint32_t            sp;
-    uint32_t            exceptionNumber;
-    uint32_t            dfsr;
-    uint32_t            hfsr;
-    uint32_t            cfsr;
-    uint32_t            mmfar;
-    uint32_t            bfar;
-    uint32_t            originalPC;
-    uint32_t            originalBasePriority;
-    uint32_t            registers[CONTEXT_SIZE];
-    PlatformTrapReason  reason;
-} CrashDumpContext;
-
-
 static void writeCrashDumpToFlash();
+static void eraseFlashUsedForCrashDump(void);
+static void copyAllRamToFlash(void);
+static void copyContextToFlash(void);
 static uint32_t wordCountRoundedUp(uint32_t val);
+static void restoreReasonCode(void);
 
 void __wrap_mriPlatform_EnteringDebugger(void)
 {
@@ -1724,19 +1799,36 @@ void __wrap_mriPlatform_EnteringDebugger(void)
         writeCrashDumpToFlash();
         NVIC_SystemReset();
     }
+    else if (g_crashState == CRASH_STATE_DEBUGGING)
+    {
+        restoreReasonCode();
+    }
     __real_mriPlatform_EnteringDebugger();
 }
 
 static void writeCrashDumpToFlash()
 {
+    eraseFlashUsedForCrashDump();
+    copyAllRamToFlash();
+    copyContextToFlash();
+}
+
+static void eraseFlashUsedForCrashDump(void)
+{
     for (uint32_t addr = CRASH_DUMP_CONTEXT ; addr < APP_START ; addr += FLASH_PAGE_SIZE)
     {
         nrf_nvmc_page_erase(addr);
     }
-    nrf_nvmc_write_words(CRASH_DUMP_RAM, (uint32_t*)START_OF_RAM, (END_OF_RAM-START_OF_RAM)/sizeof(uint32_t));
+}
 
+static void copyAllRamToFlash(void)
+{
+    nrf_nvmc_write_words(CRASH_DUMP_RAM, (uint32_t*)START_OF_RAM, (END_OF_RAM-START_OF_RAM)/sizeof(uint32_t));
+}
+
+static void copyContextToFlash(void)
+{
     CrashDumpContext dumpContext;
-    dumpContext.magic = CRASH_DUMP_CONTEXT_MAGIC;
     dumpContext.reason = mriCortexMState.reason;
     dumpContext.taskSP = mriCortexMState.taskSP;
     dumpContext.sp = mriCortexMState.sp;
@@ -1746,12 +1838,11 @@ static void writeCrashDumpToFlash()
     dumpContext.cfsr = mriCortexMState.cfsr;
     dumpContext.mmfar = mriCortexMState.mmfar;
     dumpContext.bfar = mriCortexMState.bfar;
-    dumpContext.originalPC = mriCortexMState.originalPC;
-    dumpContext.originalBasePriority = mriCortexMState.originalBasePriority;
     for (size_t i = 0 ; i < sizeof(dumpContext.registers)/sizeof(dumpContext.registers[0]) ; i++)
     {
-        dumpContext.registers[i] = Context_Get(&mriCortexMState.context, i);
+        dumpContext.registers[i] = mriContext_Get(&mriCortexMState.context, i);
     }
+    dumpContext.magic = CRASH_DUMP_CONTEXT_MAGIC;
 
     nrf_nvmc_write_words(CRASH_DUMP_CONTEXT, (uint32_t*)&dumpContext, wordCountRoundedUp(sizeof(dumpContext)));
 }
@@ -1759,4 +1850,194 @@ static void writeCrashDumpToFlash()
 static uint32_t wordCountRoundedUp(uint32_t val)
 {
     return (val + sizeof(uint32_t) - 1) / sizeof(uint32_t);
+}
+
+static void copyContextFromFlash(ContextSection* pContextSection)
+{
+    CrashDumpContext* pDumpContext = (CrashDumpContext*)CRASH_DUMP_CONTEXT;
+    while (pDumpContext->magic != CRASH_DUMP_CONTEXT_MAGIC)
+    {
+        // This shouldn't happen.
+    }
+
+    mriCortexMState.reason = pDumpContext->reason;
+    mriCortexMState.taskSP = pDumpContext->taskSP;
+    mriCortexMState.sp = pDumpContext->sp;
+    mriCortexMState.exceptionNumber = pDumpContext->exceptionNumber;
+    mriCortexMState.dfsr = pDumpContext->dfsr;
+    mriCortexMState.hfsr = pDumpContext->hfsr;
+    mriCortexMState.cfsr = pDumpContext->cfsr;
+    mriCortexMState.mmfar = pDumpContext->mmfar;
+    mriCortexMState.bfar = pDumpContext->bfar;
+
+    memcpy(pContextSection->pValues, pDumpContext->registers, pContextSection->count * sizeof(uint32_t));
+    mriContext_Init(&mriCortexMState.context, pContextSection, 1);
+}
+
+static void restoreReasonCode(void)
+{
+    CrashDumpContext* pDumpContext = (CrashDumpContext*)CRASH_DUMP_CONTEXT;
+    while (pDumpContext->magic != CRASH_DUMP_CONTEXT_MAGIC)
+    {
+        // This shouldn't happen.
+    }
+
+    mriCortexMState.reason = pDumpContext->reason;
+}
+
+
+
+// *********************************************************************************************************************
+//  Wrap of the mriPlatform_MemRead/Write*() functions which redirect RAM read requests to FLASH location of dump and
+//  silently eats write requests.
+// *********************************************************************************************************************
+static bool isRamRequestForCrashDump(const void* pv);
+static const void* ramAddressToLocationInDump(const void* pvRam);
+
+uint32_t __wrap_mriPlatform_MemRead32(const void* pv)
+{
+    if (isRamRequestForCrashDump(pv))
+    {
+        return  *(volatile const uint32_t*)ramAddressToLocationInDump(pv);
+    }
+    else
+    {
+        return  *(volatile const uint32_t*)pv;
+    }
+}
+
+uint16_t __wrap_mriPlatform_MemRead16(const void* pv)
+{
+    if (isRamRequestForCrashDump(pv))
+    {
+        return  *(volatile const uint16_t*)ramAddressToLocationInDump(pv);
+    }
+    else
+    {
+        return  *(volatile const uint16_t*)pv;
+    }
+}
+
+uint8_t __wrap_mriPlatform_MemRead8(const void* pv)
+{
+    if (isRamRequestForCrashDump(pv))
+    {
+        return  *(volatile const uint8_t*)ramAddressToLocationInDump(pv);
+    }
+    else
+    {
+        return  *(volatile const uint8_t*)pv;
+    }
+}
+
+void __wrap_mriPlatform_MemWrite32(void* pv, uint32_t value)
+{
+    if (!isRamRequestForCrashDump(pv))
+    {
+        *(volatile uint32_t*)pv = value;
+    }
+}
+
+void __wrap_mriPlatform_MemWrite16(void* pv, uint16_t value)
+{
+    if (!isRamRequestForCrashDump(pv))
+    {
+        *(volatile uint16_t*)pv = value;
+    }
+}
+
+void __wrap_mriPlatform_MemWrite8(void* pv, uint8_t value)
+{
+    if (!isRamRequestForCrashDump(pv))
+    {
+        *(volatile uint8_t*)pv = value;
+    }
+}
+
+static bool isRamRequestForCrashDump(const void* pv)
+{
+    return g_crashState == CRASH_STATE_DEBUGGING && (uint32_t)pv >= START_OF_RAM && (uint32_t)pv < END_OF_RAM;
+}
+
+static const void* ramAddressToLocationInDump(const void* pvRam)
+{
+    uint32_t ramAddress = (uint32_t)pvRam;
+    uint32_t dumpAddress = (ramAddress - START_OF_RAM) + CRASH_DUMP_RAM;
+    return (const void*)dumpAddress;
+}
+
+
+
+
+// *********************************************************************************************************************
+//  Wrap of the mriPlatform* functions which should be ignored when debugging a crash dump.
+// *********************************************************************************************************************
+void __wrap_mriPlatform_EnableSingleStep(void)
+{
+    void      __real_mriPlatform_EnableSingleStep(void);
+
+    if (g_crashState != CRASH_STATE_DEBUGGING)
+    {
+        __real_mriPlatform_EnableSingleStep();
+    }
+}
+
+void  __wrap_mriPlatform_SetHardwareBreakpointOfGdbKind(uint32_t address, uint32_t kind)
+{
+    void  __real_mriPlatform_SetHardwareBreakpointOfGdbKind(uint32_t address, uint32_t kind);
+
+    if (g_crashState != CRASH_STATE_DEBUGGING)
+    {
+        __real_mriPlatform_SetHardwareBreakpointOfGdbKind(address, kind);
+    }
+}
+
+void  __wrap_mriPlatform_SetHardwareBreakpoint(uint32_t address)
+{
+    void  __real_mriPlatform_SetHardwareBreakpoint(uint32_t address);
+
+    if (g_crashState != CRASH_STATE_DEBUGGING)
+    {
+        __real_mriPlatform_SetHardwareBreakpoint(address);
+    }
+}
+
+void  __wrap_mriPlatform_ClearHardwareBreakpointOfGdbKind(uint32_t address, uint32_t kind)
+{
+    void  __real_mriPlatform_ClearHardwareBreakpointOfGdbKind(uint32_t address, uint32_t kind);
+
+    if (g_crashState != CRASH_STATE_DEBUGGING)
+    {
+        __real_mriPlatform_ClearHardwareBreakpointOfGdbKind(address, kind);
+    }
+}
+
+void  __wrap_mriPlatform_ClearHardwareBreakpoint(uint32_t address)
+{
+    void  __real_mriPlatform_ClearHardwareBreakpoint(uint32_t address);
+
+    if (g_crashState != CRASH_STATE_DEBUGGING)
+    {
+        __real_mriPlatform_ClearHardwareBreakpoint(address);
+    }
+}
+
+void  __wrap_mriPlatform_SetHardwareWatchpoint(uint32_t address, uint32_t size,  PlatformWatchpointType type)
+{
+    void  __real_mriPlatform_SetHardwareWatchpoint(uint32_t address, uint32_t size,  PlatformWatchpointType type);
+
+    if (g_crashState != CRASH_STATE_DEBUGGING)
+    {
+        __real_mriPlatform_SetHardwareWatchpoint(address, size, type);
+    }
+}
+
+void  __wrap_mriPlatform_ClearHardwareWatchpoint(uint32_t address, uint32_t size,  PlatformWatchpointType type)
+{
+    void  __real_mriPlatform_ClearHardwareWatchpoint(uint32_t address, uint32_t size,  PlatformWatchpointType type);
+
+    if (g_crashState != CRASH_STATE_DEBUGGING)
+    {
+        __real_mriPlatform_ClearHardwareWatchpoint(address, size, type);
+    }
 }
