@@ -53,6 +53,7 @@ int main(void)
     }
 }
 
+// ISR for button 3 press running at priority level of 2 (higher priority than MRI).
 static void gpioteHandler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action)
 {
     // Crash when button 3 is pressed.
