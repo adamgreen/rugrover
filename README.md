@@ -122,4 +122,4 @@ Once I had the mechanical design mostly figured out, I moved onto the design of 
 Once the mechanical and electronics were far enough along I could start writing the software. This should be where I spend the most amount of time. I will provide links to notes about each software component as I write its code.
 
 **Software Components:**
-* [mriblue debug monitor](mriblue/README): A FLASH resident bootloader and debug monitor that runs on the nRF52832 to enable wireless debugging and programming over Bluetooth Low Energy (BLE) from GDB.
+* [mriblue debug monitor](mriblue/README.md#mriblue): A FLASH resident bootloader and debug monitor that runs on the nRF52832 to enable wireless debugging and programming over Bluetooth Low Energy (BLE) from GDB.
