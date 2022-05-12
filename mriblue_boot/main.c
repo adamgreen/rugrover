@@ -1621,20 +1621,21 @@ typedef struct ExceptionStack
 
 
 static ExceptionStack* getExceptionStack(uint32_t excReturn, uint32_t psp, uint32_t msp);
-static bool isExceptionPriorityLowEnoughToDebug(uint32_t exceptionNumber);
-static uint32_t getInterruptPriority(uint32_t exceptionNumber);
-static void recordAndClearFaultStatusBits();
-static void setPendedFromFaultBit(void);
 static bool isDebugThreadActive();
 static void setFaultDetectedFlag();
 static bool isImpreciseBusFault();
 static void advancePCToNextInstruction(ExceptionStack* pExceptionStack);
 static int isInstruction32Bit(uint16_t firstWordOfInstruction);
 static void clearFaultStatusBits();
+static bool isExceptionPriorityLowEnoughToDebug(uint32_t exceptionNumber);
+static uint32_t getInterruptPriority(uint32_t exceptionNumber);
+static void recordAndClearFaultStatusBits(void);
+static void setPendedFromFaultBit(void);
+static void resetMriFlags(void);
 
 // This handler will be called from the fault handlers (Hard Fault, etc.)
-// If the fault occurred in low priority code that pend a DebugMon interrupt so that MRI can be used to debug it.
-// Just infinite loops if it was in a high priority interrupt since MRI can't debug those type of faults.
+// If the fault occurred in low priority code then pend a DebugMon interrupt so that MRI can be used to debug it.
+// If it was in a high priority interrupt then kick off a crash dump since MRI can't debug those type of faults.
 int mriFaultHandler(uint32_t psp, uint32_t msp, uint32_t excReturn)
 {
     const uint32_t debugMonExceptionNumber = (uint32_t)(DebugMonitor_IRQn + 16);
@@ -1666,6 +1667,7 @@ int mriFaultHandler(uint32_t psp, uint32_t msp, uint32_t excReturn)
     {
         // Exception occurred in code too high priority to debug so start a crash dump.
         g_crashState = CRASH_STATE_DUMPING;
+        resetMriFlags();
         return -1;
     }
 }
@@ -1776,6 +1778,11 @@ static void setPendedFromFaultBit(void)
     mriCortexMFlags |= CORTEXM_FLAGS_PEND_FROM_FAULT;
 }
 
+static void resetMriFlags(void)
+{
+    // Only preserve the CORTEXM_FLAGS_NO_DEBUG_STACK bit. Clear the rest.
+    mriCortexMFlags &= CORTEXM_FLAGS_NO_DEBUG_STACK;
+}
 
 
 
