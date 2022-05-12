@@ -26,7 +26,7 @@ Having recently reread the book, I thought it would be fun to build a comparable
   * Program in C/C++ using GCC.
   * Debug code using GDB.
 * Mechanical components will be designed in CAD and 3D printed.
-* Use KiCAD to design custom PCB for this bot. The first iteration of the PCB might be a shield for a nRF52 development kit that I already own. Later I could design a new PCB that uses a small nRF52 module, like those [offered by Adafruit](https://www.adafruit.com/product/4077).
+* Use KiCAD to design a custom PCB for this bot. The first iteration of the PCB will be a shield for a nRF52 development kit that I already own. Later I can design a new PCB that uses a small nRF52 module, like those [offered by Adafruit](https://www.adafruit.com/product/4077).
 
 
 ## Bill of Materials
@@ -117,3 +117,9 @@ Once I had the mechanical design mostly figured out, I moved onto the design of 
 ![Photo of boards back from OSHPark](photos/20220420-01.jpg)
 
 [Schematic PDF](hardware/shield.pdf)</br>
+
+## Software
+Once the mechanical and electronics were far enough along I could start writing the software. This should be where I spend the most amount of time. I will provide links to notes about each software component as I write its code.
+
+**Software Components:**
+* [mriblue debug monitor](mriblue/README): A FLASH resident bootloader and debug monitor that runs on the nRF52832 to enable wireless debugging and programming over Bluetooth Low Energy (BLE) from GDB.
