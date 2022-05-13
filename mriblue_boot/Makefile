@@ -254,6 +254,8 @@ LDFLAGS += -Wl,--wrap=mriPlatform_ClearHardwareBreakpointOfGdbKind
 LDFLAGS += -Wl,--wrap=mriPlatform_ClearHardwareBreakpoint
 LDFLAGS += -Wl,--wrap=mriPlatform_SetHardwareWatchpoint
 LDFLAGS += -Wl,--wrap=mriPlatform_ClearHardwareWatchpoint
+LDFLAGS += -Wl,--wrap=mriPlatform_TypeOfCurrentInstruction
+LDFLAGS += -Wl,--wrap=mriSemihost_HandleNewlibSemihostRequest
 
 .PHONY: $(TARGETS) default all clean help flash flash_softdevice sdk mri
 

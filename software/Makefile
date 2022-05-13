@@ -6,6 +6,7 @@ SDK_ROOT := ../nrfSDK
 NRF_TOOL_PATH := ../nrfTools
 PROJ_DIR := .
 MRI_PATH := ../mri
+MRIBLUE_PATH := ../mriblue_boot
 
 $(OUTPUT_DIRECTORY)/RugRover.out: \
   LINKER_SCRIPT  := nrf52.ld
@@ -37,11 +38,14 @@ SRC_FILES += \
   $(SDK_ROOT)/components/libraries/simple_timer/app_simple_timer.c \
   $(PROJ_DIR)/main.c \
   $(PROJ_DIR)/gcc_startup_nrf52.S \
+  $(PROJ_DIR)/newlib_stubs.S \
+  $(PROJ_DIR)/newlib_retarget.c \
 
 # Include folders common to all targets
 INC_FOLDERS += \
   $(PROJ_DIR) \
   $(MRI_PATH) \
+  $(MRIBLUE_PATH) \
   $(SDK_ROOT)/components/drivers_nrf/comp \
   $(SDK_ROOT)/components/drivers_nrf/twi_master \
   $(SDK_ROOT)/components/softdevice/s132/headers \

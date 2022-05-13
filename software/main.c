@@ -15,11 +15,47 @@
 #include <nrf_delay.h>
 #include <nrf_gpio.h>
 #include <nrf_drv_gpiote.h>
+#include <sys/stat.h>
+#include <stdio.h>
 
 static void gpioteHandler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action);
 
 int main(void)
 {
+    // Exercise the semihosting support a bit.
+    printf("Excercising Semihosting Support...\r\n");
+
+    FILE* pFile = fopen("dmri", "r");
+    if (!pFile)
+    {
+        fprintf(stderr, "error: Failed to open dmri script\r\n");
+        return -1;
+    }
+    struct stat st;
+    int result = fstat(__sfileno(pFile), &st);
+    if (result)
+    {
+        fprintf(stderr, "error: Failed fstat call\r\n");
+        return -1;
+    }
+    printf("dmri file statistics\r\n");
+    printf("  size = %ld\r\n", st.st_size);
+
+    uint8_t* pBuff = malloc(st.st_size) + 1;
+    size_t bytesRead = fread(pBuff, 1, st.st_size, pFile);
+    if (bytesRead != st.st_size)
+    {
+        fprintf(stderr, "error: Failed read call\r\n");
+        return -1;
+    }
+    pBuff[st.st_size-1] = '\0';
+    printf("dmri contents\r\n");
+    printf("%s\r\n", pBuff);
+
+    fclose(pFile);
+    printf("Semihosting exercise completed...\r\n");
+
+
     /* Toggle LEDs. */
     const uint32_t leds[2] = { 19, 20 };
     for (size_t i = 0 ; i < 2 ; i++) {

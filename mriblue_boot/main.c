@@ -38,8 +38,10 @@
 #include <architectures/armv7-m/armv7-m.h>
 #include <core/mri.h>
 #include <core/cmd_common.h>
+#include <core/cmd_file.h>
 #include <core/core.h>
 #include <core/gdb_console.h>
+#include "newlib_stubs.h"
 #include "app.h"
 #include "CircularQueue.h"
 
@@ -2049,4 +2051,191 @@ void  __wrap_mriPlatform_ClearHardwareWatchpoint(uint32_t address, uint32_t size
     {
         __real_mriPlatform_ClearHardwareWatchpoint(address, size, type);
     }
+}
+
+
+
+
+// *********************************************************************************************************************
+//  Wrap of the mriPlatform* functions associated with newlib Standard C Library semihosting.
+// *********************************************************************************************************************
+static uint16_t getFirstHalfWordOfCurrentInstruction(void);
+static uint16_t throwingMemRead16(uint32_t address);
+static int isInstructionNewlibSemihostBreakpoint(uint16_t instruction);
+static int isInstructionHardcodedBreakpoint(uint16_t instruction);
+PlatformInstructionType __wrap_mriPlatform_TypeOfCurrentInstruction(void)
+{
+    uint16_t currentInstruction;
+
+    __try
+    {
+        currentInstruction = getFirstHalfWordOfCurrentInstruction();
+    }
+    __catch
+    {
+        /* Will get here if PC isn't pointing to valid memory so treat as other. */
+        clearExceptionCode();
+        return MRI_PLATFORM_INSTRUCTION_OTHER;
+    }
+
+    if (isInstructionNewlibSemihostBreakpoint(currentInstruction))
+        return MRI_PLATFORM_INSTRUCTION_NEWLIB_SEMIHOST_CALL;
+    else if (isInstructionHardcodedBreakpoint(currentInstruction))
+        return MRI_PLATFORM_INSTRUCTION_HARDCODED_BREAKPOINT;
+    else
+        return MRI_PLATFORM_INSTRUCTION_OTHER;
+}
+
+static uint16_t getFirstHalfWordOfCurrentInstruction(void)
+{
+    return throwingMemRead16(Platform_GetProgramCounter());
+}
+
+static uint16_t throwingMemRead16(uint32_t address)
+{
+    uint16_t instructionWord = Platform_MemRead16((const uint16_t*)address);
+    if (Platform_WasMemoryFaultEncountered())
+        __throw_and_return(memFaultException, 0);
+    return instructionWord;
+}
+
+static int isInstructionNewlibSemihostBreakpoint(uint16_t instruction)
+{
+    static const uint16_t newlibSemihostBreakpointMinMachineCode = 0xbe00 | MRI_NEWLIB_SEMIHOST_MIN;
+    static const uint16_t newlibSemihostBreakpointMaxMachineCode = 0xbe00 | MRI_NEWLIB_SEMIHOST_MAX;
+
+    return (instruction >= newlibSemihostBreakpointMinMachineCode ||
+            instruction <=  newlibSemihostBreakpointMaxMachineCode);
+}
+
+static int isInstructionHardcodedBreakpoint(uint16_t instruction)
+{
+    static const uint16_t hardCodedBreakpointMachineCode = 0xbe00;
+
+    return (hardCodedBreakpointMachineCode == instruction);
+}
+
+
+
+static int handleNewlibSemihostWriteRequest(PlatformSemihostParameters* pSemihostParameters);
+static int handleNewlibSemihostReadRequest(PlatformSemihostParameters* pSemihostParameters);
+static int handleNewlibSemihostOpenRequest(PlatformSemihostParameters* pSemihostParameters);
+static int handleNewlibSemihostUnlinkRequest(PlatformSemihostParameters* pSemihostParameters);
+static int handleNewlibSemihostLSeekRequest(PlatformSemihostParameters* pSemihostParameters);
+static int handleNewlibSemihostCloseRequest(PlatformSemihostParameters* pSemihostParameters);
+static int handleNewlibSemihostFStatRequest(PlatformSemihostParameters* pSemihostParameters);
+static int handleNewlibSemihostStatRequest(PlatformSemihostParameters* pSemihostParameters);
+static int handleNewlibSemihostRenameRequest(PlatformSemihostParameters* pSemihostParameters);
+int __wrap_mriSemihost_HandleNewlibSemihostRequest(PlatformSemihostParameters* pSemihostParameters)
+{
+    uint16_t semihostOperation = getFirstHalfWordOfCurrentInstruction() & 0x00FF;
+
+    switch (semihostOperation)
+    {
+        case MRI_NEWLIB_SEMIHOST_WRITE:
+            return handleNewlibSemihostWriteRequest(pSemihostParameters);
+        case MRI_NEWLIB_SEMIHOST_READ:
+            return handleNewlibSemihostReadRequest(pSemihostParameters);
+        case MRI_NEWLIB_SEMIHOST_OPEN:
+            return handleNewlibSemihostOpenRequest(pSemihostParameters);
+        case MRI_NEWLIB_SEMIHOST_UNLINK:
+            return handleNewlibSemihostUnlinkRequest(pSemihostParameters);
+        case MRI_NEWLIB_SEMIHOST_LSEEK:
+            return handleNewlibSemihostLSeekRequest(pSemihostParameters);
+        case MRI_NEWLIB_SEMIHOST_CLOSE:
+            return handleNewlibSemihostCloseRequest(pSemihostParameters);
+        case MRI_NEWLIB_SEMIHOST_FSTAT:
+            return handleNewlibSemihostFStatRequest(pSemihostParameters);
+        case MRI_NEWLIB_SEMIHOST_STAT:
+            return handleNewlibSemihostStatRequest(pSemihostParameters);
+        case MRI_NEWLIB_SEMIHOST_RENAME:
+            return handleNewlibSemihostRenameRequest(pSemihostParameters);
+        default:
+            return 0;
+    }
+}
+
+static int handleNewlibSemihostWriteRequest(PlatformSemihostParameters* pSemihostParameters)
+{
+    TransferParameters parameters;
+
+    parameters.fileDescriptor = pSemihostParameters->parameter1;
+    parameters.bufferAddress = pSemihostParameters->parameter2;
+    parameters.bufferSize = pSemihostParameters->parameter3;
+
+    return IssueGdbFileWriteRequest(&parameters);
+}
+
+static int handleNewlibSemihostReadRequest(PlatformSemihostParameters* pSemihostParameters)
+{
+    TransferParameters parameters;
+
+    parameters.fileDescriptor = pSemihostParameters->parameter1;
+    parameters.bufferAddress = pSemihostParameters->parameter2;
+    parameters.bufferSize = pSemihostParameters->parameter3;
+
+    return IssueGdbFileReadRequest(&parameters);
+}
+
+static int handleNewlibSemihostOpenRequest(PlatformSemihostParameters* pSemihostParameters)
+{
+    OpenParameters parameters;
+
+    parameters.filenameAddress = pSemihostParameters->parameter1;
+    parameters.filenameLength = strlen((const char*)parameters.filenameAddress) + 1;
+    parameters.flags = pSemihostParameters->parameter2;
+    parameters.mode = pSemihostParameters->parameter3;
+
+    return IssueGdbFileOpenRequest(&parameters);
+}
+
+static int handleNewlibSemihostUnlinkRequest(PlatformSemihostParameters* pSemihostParameters)
+{
+    RemoveParameters parameters;
+
+    parameters.filenameAddress = pSemihostParameters->parameter1;
+    parameters.filenameLength = strlen((const char*)parameters.filenameAddress) + 1;
+
+    return IssueGdbFileUnlinkRequest(&parameters);
+}
+
+static int handleNewlibSemihostLSeekRequest(PlatformSemihostParameters* pSemihostParameters)
+{
+    SeekParameters parameters;
+
+    parameters.fileDescriptor = pSemihostParameters->parameter1;
+    parameters.offset = pSemihostParameters->parameter2;
+    parameters.whence = pSemihostParameters->parameter3;
+
+    return IssueGdbFileSeekRequest(&parameters);
+}
+
+static int handleNewlibSemihostCloseRequest(PlatformSemihostParameters* pSemihostParameters)
+{
+    return IssueGdbFileCloseRequest(pSemihostParameters->parameter1);
+}
+
+static int handleNewlibSemihostFStatRequest(PlatformSemihostParameters* pSemihostParameters)
+{
+    return IssueGdbFileFStatRequest(pSemihostParameters->parameter1, pSemihostParameters->parameter2);
+}
+
+static int handleNewlibSemihostStatRequest(PlatformSemihostParameters* pSemihostParameters)
+{
+    StatParameters parameters;
+
+    parameters.filenameAddress = pSemihostParameters->parameter1;
+    parameters.filenameLength = strlen((const char*) parameters.filenameAddress) + 1;
+    return IssueGdbFileStatRequest(&parameters);
+}
+
+static int handleNewlibSemihostRenameRequest(PlatformSemihostParameters* pSemihostParameters)
+{
+    RenameParameters parameters;
+
+    parameters.origFilenameAddress = pSemihostParameters->parameter1;
+    parameters.origFilenameLength = strlen((const char*)parameters.origFilenameAddress) + 1;
+    parameters.newFilenameAddress = pSemihostParameters->parameter2;
+    parameters.newFilenameLength = strlen((const char*)parameters.newFilenameAddress) + 1;
+    return IssueGdbFileRenameRequest(&parameters);
 }
