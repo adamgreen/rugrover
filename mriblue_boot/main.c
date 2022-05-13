@@ -238,6 +238,14 @@ typedef struct CrashDumpContext
     uint32_t            magic;
 } CrashDumpContext;
 
+// Number of GDB acks/naks to ignore in return of O packets used to write to stdout so that application is not halted
+// until the ACK comes back.
+static volatile uint32_t g_ignoreAckCount = 0;
+
+// Number of GDB fake acks to return in response to O packets sent to write to stdout. Will be incremented at the same
+// time as g_ignoreAckCount above but decremented in a separate location.
+static volatile uint32_t g_fakeAckCount = 0;
+
 
 
 // Forward Function Declarations
@@ -779,13 +787,22 @@ static void initBleUartService(void)
 
 static void nordicUartServiceHandler(ble_nus_t * pNordicUartService, uint8_t * pData, uint16_t length)
 {
+    while (g_ignoreAckCount > 0 && length > 0 && (*pData == '+' || *pData == '-'))
+    {
+        pData++;
+        length--;
+        nrf_atomic_u32_sub(&g_ignoreAckCount, 1);
+    }
+
     uint32_t bytesWritten = CircularQueue_Write(&g_bleToMriQueue, pData, length);
     ASSERT ( bytesWritten == length );
-    if (g_crashState == CRASH_STATE_NONE && !isAlreadyDebugging())
+    if (g_crashState == CRASH_STATE_NONE && !isAlreadyDebugging() && length > 0)
     {
         // GDB is sending a command, probably a CTRL+C, so pend entry into DebugMon handler.
         setControlCFlag();
         setMonitorPending();
+        g_ignoreAckCount = 0;
+        g_fakeAckCount = 0;
     }
 }
 
@@ -1205,6 +1222,12 @@ uint32_t  mriPlatform_CommHasTransmitCompleted(void)
 static void waitToReceiveData(void);
 int mriPlatform_CommReceiveChar(void)
 {
+    if (g_fakeAckCount > 0)
+    {
+        nrf_atomic_u32_sub(&g_fakeAckCount, 1);
+        return '+';
+    }
+
     waitToReceiveData();
 
     uint8_t byte = 0;
@@ -2118,6 +2141,7 @@ static int isInstructionHardcodedBreakpoint(uint16_t instruction)
 
 
 static int handleNewlibSemihostWriteRequest(PlatformSemihostParameters* pSemihostParameters);
+static int writeToGdbConsoleWithNoWait(const TransferParameters* pParameters);
 static int handleNewlibSemihostReadRequest(PlatformSemihostParameters* pSemihostParameters);
 static int handleNewlibSemihostOpenRequest(PlatformSemihostParameters* pSemihostParameters);
 static int handleNewlibSemihostUnlinkRequest(PlatformSemihostParameters* pSemihostParameters);
@@ -2157,13 +2181,40 @@ int __wrap_mriSemihost_HandleNewlibSemihostRequest(PlatformSemihostParameters* p
 
 static int handleNewlibSemihostWriteRequest(PlatformSemihostParameters* pSemihostParameters)
 {
+    const uint32_t     STDOUT_FILE_NO = 1;
     TransferParameters parameters;
 
     parameters.fileDescriptor = pSemihostParameters->parameter1;
     parameters.bufferAddress = pSemihostParameters->parameter2;
     parameters.bufferSize = pSemihostParameters->parameter3;
-
+    if (parameters.fileDescriptor == STDOUT_FILE_NO)
+    {
+        return writeToGdbConsoleWithNoWait(&parameters);
+    }
     return IssueGdbFileWriteRequest(&parameters);
+}
+
+static int writeToGdbConsoleWithNoWait(const TransferParameters* pParameters)
+{
+    char buffer[64+1];
+    const char* pSrc = (const char*)pParameters->bufferAddress;
+    size_t length = pParameters->bufferSize;
+    while (length > 0)
+    {
+        size_t bytesToCopy = (length > sizeof(buffer)-1) ? sizeof(buffer)-1 : length;
+        memcpy(buffer, pSrc, bytesToCopy);
+        buffer[bytesToCopy] = '\0';
+        pSrc += bytesToCopy;
+        length -= bytesToCopy;
+
+        nrf_atomic_u32_add(&g_ignoreAckCount, 1);
+        nrf_atomic_u32_add(&g_fakeAckCount, 1);
+        mriGdbConsole_WriteString(buffer);
+    }
+
+    mriCore_SetSemihostReturnValues(pParameters->bufferSize, 0);
+    mriCore_FlagSemihostCallAsHandled();
+    return 1;
 }
 
 static int handleNewlibSemihostReadRequest(PlatformSemihostParameters* pSemihostParameters)

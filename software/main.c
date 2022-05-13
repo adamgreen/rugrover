@@ -83,6 +83,7 @@ int main(void)
 
         for (int i = 0; i < 2; i++)
         {
+            printf("Toggle\r\n");
             nrf_gpio_pin_toggle(leds[i]);
             nrf_delay_ms(500);
         }
