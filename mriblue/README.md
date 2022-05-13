@@ -9,6 +9,7 @@ This was one of the yak shaving projects I got sidetracked with at the beginning
   * It supports hardware breakpoints.
   * It supports data watchpoints.
   * It supports single stepping.
+  * It supports semihosting, allowing I/O to be completed against files and stdout/stdin on my Mac.
 * It provides wireless connectivity using the built-in BLE capabilities of the nRF52 microcontroller.
 * No extra debug hardware is required. It is a monitor which runs directly on the nRF52 microcontroller being debugged.
 * High priority code can't be debugged but if a crash should occur in such code, a crash dump will be generated and placed in FLASH by mriblue instead. Once the dump has been saved away, the device will reset and mriblue will automatically come up in crash dump debugging mode so that GDB can use the dump to query the state of the device at the time of the crash.
