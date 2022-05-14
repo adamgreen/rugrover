@@ -19,6 +19,7 @@ This was one of the yak shaving projects I got sidetracked with at the beginning
 ## mriblue Monitor Commands
 When using GDB you can send a few special commands to the mriblue debug monitor:
 * **"monitor reset"** flags the device for reset. Follow it with a **"continue"** command to actually reboot the microcontroller. This also clears a crash dump out of the FLASH so that you can switch back to a live CPU debugging session.
+* **"monitor resetbreak on|off"** enables or disables the automatic halting of the program in its Reset_Handler during bootup. This is persisted across power cycles in FLASH.
 * **"monitor showfault"** will display extra information to the GDB console about the nature of a fault (using the Cortex-M fault status registers).
 ```console
 (gdb) monitor showfault

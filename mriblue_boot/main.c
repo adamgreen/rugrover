@@ -166,6 +166,15 @@
 // Magic value placed in CrashDumpContext::magic to indicate that context contents are valid.
 #define CRASH_DUMP_CONTEXT_MAGIC    0xADA3ADA3
 
+// Bits stored in the FLASH based boot flags.
+// If this bit is set then break on the Reset_Handler of the debuggee.
+#define BOOT_FLAGS_BREAK_ON_RESET   (1 << 0)
+// Reserved bit that is always set to 0 to make sure that valid boot flag never gets confused for unused slot.
+#define BOOT_FLAGS_RESERVED         (1 << 31)
+
+// Default value for boot flags if there is no setting in FLASH.
+#define BOOT_FLAGS_DEFAULT_VALUE    (BOOT_FLAGS_BREAK_ON_RESET)
+
 
 
 // Nordic UART service.
@@ -246,6 +255,9 @@ static volatile uint32_t g_ignoreAckCount = 0;
 // time as g_ignoreAckCount above but decremented in a separate location.
 static volatile uint32_t g_fakeAckCount = 0;
 
+// The latest boot flags that have been read from FLASH.
+static uint32_t g_bootFlags = BOOT_FLAGS_DEFAULT_VALUE;
+
 
 
 // Forward Function Declarations
@@ -278,6 +290,8 @@ static void checkForButtonPress();
 static void startAdvertising(void);
 static void getPeerList(pm_peer_id_t* pPeers, uint32_t* pCount);
 static void elevateInterruptPriorities(void);
+static uint32_t findLatestBootFlags(void);
+static void findLatestBootFlagsLocations(uint32_t** ppLastUsed, uint32_t** ppNextAvail);
 static bool isValidCrashDumpInFlash(void);
 static void debugCrashDump(void);
 static void transferControlToApplicationToDebug(void);
@@ -312,6 +326,9 @@ int main(void)
     // Let the BLE stack advertising that it is available for connections.
     startTimers();
     startAdvertising();
+
+    // Search a special location in FLASH for the latest boot flags.
+    g_bootFlags = findLatestBootFlags();
 
     if (isValidCrashDumpInFlash())
     {
@@ -1163,14 +1180,52 @@ static void transferControlToApplicationToDebug(void)
         }
     }
 
-    // Set the initial breakpoint at the beginning of the app's Reset_Handler, allowing the developer to set breakpoints
-    // of interest. This is early enough to set breakpoints in global constructors and is the only address this
-    // bootloader really knows about in the application. It doesn't know the location of main() for example.
-    mriCore_SetTempBreakpoint(resetHandler, enteredResetHandlerCallback, NULL);
-
+    if (g_bootFlags & BOOT_FLAGS_BREAK_ON_RESET)
+    {
+        // Set the initial breakpoint at the beginning of the app's Reset_Handler, allowing the developer to set breakpoints
+        // of interest. This is early enough to set breakpoints in global constructors and is the only address this
+        // bootloader really knows about in the application. It doesn't know the location of main() for example.
+        mriCore_SetTempBreakpoint(resetHandler, enteredResetHandlerCallback, NULL);
+    }
     // Jump to the application's Reset_Handler.
     void (*pResetHandler)(void) = (void (*)(void))resetHandler;
     pResetHandler();
+}
+
+static uint32_t findLatestBootFlags(void)
+{
+    uint32_t bootFlags = BOOT_FLAGS_DEFAULT_VALUE;
+    uint32_t* pLastUsed = NULL;
+    uint32_t* pNextAvail = NULL;
+
+    findLatestBootFlagsLocations(&pLastUsed, &pNextAvail);
+    if (pLastUsed != NULL)
+    {
+        bootFlags = *pLastUsed;
+    }
+    return bootFlags;
+}
+
+static void findLatestBootFlagsLocations(uint32_t** ppLastUsed, uint32_t** ppNextAvail)
+{
+    // The boot flags are stored between the end of where the crash dump context would live and the end of that 4k
+    // page. The latest one will be stored at the lowest such address which doesn't contain all 0xFFFFFFFF.
+    CrashDumpContext* pContextStart = (CrashDumpContext*)CRASH_DUMP_CONTEXT;
+    uint32_t* pEnd = (uint32_t*)(pContextStart + 1);
+    uint32_t* pStart = (uint32_t*)(CRASH_DUMP_CONTEXT + FLASH_PAGE_SIZE - sizeof(uint32_t));
+    uint32_t* pCurr = pStart;
+    uint32_t* pPrev = NULL;
+    while (pCurr >= pEnd && *pCurr != 0xFFFFFFFF)
+    {
+        pPrev = pCurr;
+        pCurr--;
+    }
+    *ppLastUsed = pPrev;
+    if (pCurr < pEnd)
+    {
+        pCurr = NULL;
+    }
+    *ppNextAvail = pCurr;
 }
 
 static int enteredResetHandlerCallback(void* pvContext)
@@ -1286,6 +1341,11 @@ static char readNextCharAndUnescape(Buffer* pBuffer);
 static char unescapeByte(char charToUnescape);
 static uint32_t  handleFlashDoneCommand(Buffer* pBuffer);
 static uint32_t clearCrashDumpAndReset(void);
+static void flagCrashDumpAsInvalid(void);
+static uint32_t handleResetBreakCommand(bool value);
+static void setResetBreakBootFlag(bool value);
+static void persistBootFlagsToFlash(void);
+static uint32_t handleMonitorHelpCommand(void);
 
 /* Handle the 'vFlash' commands used by gdb.
 
@@ -1298,6 +1358,9 @@ uint32_t  mriPlatform_HandleGDBCommand(Buffer* pBuffer)
     const char   vFlashWriteCommand[] = "vFlashWrite";
     const char   vFlashDoneCommand[] = "vFlashDone";
     const char   monitorResetCommand[] = "qRcmd,7265736574";
+    const char   monitorResetBreakOffCommand[] = "qRcmd,7265736574627265616b206f6666";
+    const char   monitorResetBreakOnCommand[] = "qRcmd,7265736574627265616b206f6e";
+    const char   monitorHelpCommand[] = "qRcmd,68656c70";
 
     Buffer_Reset(pBuffer);
     if (Buffer_MatchesString(pBuffer, vFlashEraseCommand, sizeof(vFlashEraseCommand)-1))
@@ -1315,6 +1378,18 @@ uint32_t  mriPlatform_HandleGDBCommand(Buffer* pBuffer)
     else if (Buffer_MatchesString(pBuffer, monitorResetCommand, sizeof(monitorResetCommand)-1))
     {
         return clearCrashDumpAndReset();
+    }
+    else if (Buffer_MatchesString(pBuffer, monitorResetBreakOffCommand, sizeof(monitorResetBreakOffCommand)-1))
+    {
+        return handleResetBreakCommand(false);
+    }
+    else if (Buffer_MatchesString(pBuffer, monitorResetBreakOnCommand, sizeof(monitorResetBreakOnCommand)-1))
+    {
+        return handleResetBreakCommand(true);
+    }
+    else if (Buffer_MatchesString(pBuffer, monitorHelpCommand, sizeof(monitorHelpCommand)-1))
+    {
+        return handleMonitorHelpCommand();
     }
     else
     {
@@ -1592,7 +1667,7 @@ static uint32_t clearCrashDumpAndReset(void)
         return 0;
     }
 
-    sd_flash_page_erase(CRASH_DUMP_CONTEXT/FLASH_PAGE_SIZE);
+    flagCrashDumpAsInvalid();
 
     RequestResetOnNextContinue();
     WriteStringToGdbConsole("Crash dump cleared. Will reset on next continue.\r\n");
@@ -1600,6 +1675,76 @@ static uint32_t clearCrashDumpAndReset(void)
 
     return HANDLER_RETURN_HANDLED;
 }
+
+static void flagCrashDumpAsInvalid(void)
+{
+    volatile CrashDumpContext* pContext = (CrashDumpContext*)CRASH_DUMP_CONTEXT;
+    uint32_t zero = 0x00000000;
+
+    sd_flash_write((uint32_t*)&pContext->magic, &zero, 1);
+    while (pContext->magic != 0x00000000)
+    {
+    }
+}
+
+static uint32_t handleResetBreakCommand(bool value)
+{
+    setResetBreakBootFlag(value);
+    PrepareStringResponse("OK");
+    return HANDLER_RETURN_HANDLED;
+}
+
+static void setResetBreakBootFlag(bool value)
+{
+    if (value)
+    {
+        g_bootFlags |= BOOT_FLAGS_BREAK_ON_RESET;
+    }
+    else
+    {
+        g_bootFlags &= ~BOOT_FLAGS_BREAK_ON_RESET;
+    }
+
+    persistBootFlagsToFlash();
+}
+
+static void persistBootFlagsToFlash(void)
+{
+    uint32_t* pLastUsed = NULL;
+    uint32_t* pNextAvail = NULL;
+
+    while (pNextAvail == NULL)
+    {
+        findLatestBootFlagsLocations(&pLastUsed, &pNextAvail);
+        if (pNextAvail == NULL)
+        {
+            // The FLASH page is full of boot flags so erase the whole page and start over from scratch.
+            eraseFlashPage(CRASH_DUMP_CONTEXT / FLASH_PAGE_SIZE);
+        }
+        if (pLastUsed != NULL && *pLastUsed == g_bootFlags)
+        {
+            // The boot flags haven't changed since last time so just exit without using another FLASH slot.
+            return;
+        }
+    }
+
+    sd_flash_write(pNextAvail, &g_bootFlags, 1);
+    volatile uint32_t* pWriting = pNextAvail;
+    while (*pWriting != g_bootFlags)
+    {
+    }
+}
+
+static uint32_t handleMonitorHelpCommand(void)
+{
+    WriteStringToGdbConsole("Supported monitor commands:\r\n");
+    WriteStringToGdbConsole("reset - Resets uC on next continue command.\r\n");
+    WriteStringToGdbConsole("resetbreak on|off - Enable/disable break on reset.\r\n");
+    WriteStringToGdbConsole("showfault - Dump Cortex-M fault status registers.\r\n");
+    PrepareStringResponse("OK");
+    return HANDLER_RETURN_HANDLED;
+}
+
 
 
 
@@ -1822,6 +1967,7 @@ static void eraseFlashUsedForCrashDump(void);
 static void copyAllRamToFlash(void);
 static void copyContextToFlash(void);
 static uint32_t wordCountRoundedUp(uint32_t val);
+static void copyBootFlagsToFlash(void);
 static void restoreReasonCode(void);
 
 void __wrap_mriPlatform_EnteringDebugger(void)
@@ -1844,6 +1990,7 @@ static void writeCrashDumpToFlash()
 {
     eraseFlashUsedForCrashDump();
     copyAllRamToFlash();
+    copyBootFlagsToFlash();
     copyContextToFlash();
 }
 
@@ -1884,6 +2031,12 @@ static void copyContextToFlash(void)
 static uint32_t wordCountRoundedUp(uint32_t val)
 {
     return (val + sizeof(uint32_t) - 1) / sizeof(uint32_t);
+}
+
+static void copyBootFlagsToFlash(void)
+{
+    uint32_t writeAddress = CRASH_DUMP_CONTEXT + FLASH_PAGE_SIZE - sizeof(uint32_t);
+    nrf_nvmc_write_words(writeAddress, &g_bootFlags, 1);
 }
 
 static void copyContextFromFlash(ContextSection* pContextSection)
