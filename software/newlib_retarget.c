@@ -47,6 +47,9 @@ typedef struct
     uint32_t    lastChangeTime;
 } GdbStats;
 
+/* Flag set to flag that MRI hooks should be disabled when writing to stdout. */
+volatile int g_mriDisableHooks = 0;
+
 
 static uint32_t extractWordFromBigEndianWord(const void* pBigEndianValueToExtract);
 
@@ -130,7 +133,20 @@ int _read(int file, char *ptr, int len)
 
 int _write(int file, char *ptr, int len)
 {
-    return mriNewlib_SemihostWrite(file, ptr, len);
+    const int STDOUT_FILE_NO = 1;
+
+    if (file == STDOUT_FILE_NO)
+    {
+        g_mriDisableHooks = 1;
+    }
+
+    int result = mriNewlib_SemihostWrite(file, ptr, len);
+
+    if (file == STDOUT_FILE_NO)
+    {
+        g_mriDisableHooks = 0;
+    }
+    return result;
 }
 
 int _isatty(int file)

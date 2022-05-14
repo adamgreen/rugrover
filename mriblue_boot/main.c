@@ -2150,6 +2150,7 @@ static int handleNewlibSemihostCloseRequest(PlatformSemihostParameters* pSemihos
 static int handleNewlibSemihostFStatRequest(PlatformSemihostParameters* pSemihostParameters);
 static int handleNewlibSemihostStatRequest(PlatformSemihostParameters* pSemihostParameters);
 static int handleNewlibSemihostRenameRequest(PlatformSemihostParameters* pSemihostParameters);
+static int handleNewlibSemihostSetHooksRequest(PlatformSemihostParameters* pSemihostParameters);
 int __wrap_mriSemihost_HandleNewlibSemihostRequest(PlatformSemihostParameters* pSemihostParameters)
 {
     uint16_t semihostOperation = getFirstHalfWordOfCurrentInstruction() & 0x00FF;
@@ -2174,6 +2175,8 @@ int __wrap_mriSemihost_HandleNewlibSemihostRequest(PlatformSemihostParameters* p
             return handleNewlibSemihostStatRequest(pSemihostParameters);
         case MRI_NEWLIB_SEMIHOST_RENAME:
             return handleNewlibSemihostRenameRequest(pSemihostParameters);
+        case MRI_NEWLIB_SEMIHOST_SET_HOOKS:
+            return handleNewlibSemihostSetHooksRequest(pSemihostParameters);
         default:
             return 0;
     }
@@ -2289,4 +2292,17 @@ static int handleNewlibSemihostRenameRequest(PlatformSemihostParameters* pSemiho
     parameters.newFilenameAddress = pSemihostParameters->parameter2;
     parameters.newFilenameLength = strlen((const char*)parameters.newFilenameAddress) + 1;
     return IssueGdbFileRenameRequest(&parameters);
+}
+
+static int handleNewlibSemihostSetHooksRequest(PlatformSemihostParameters* pSemihostParameters)
+{
+    MriDebuggerHookPtr pEnteringHook = (MriDebuggerHookPtr)pSemihostParameters->parameter1;
+    MriDebuggerHookPtr pLeavingHook = (MriDebuggerHookPtr)pSemihostParameters->parameter2;
+    void* pvContext = (void*)pSemihostParameters->parameter3;
+
+    mriSetDebuggerHooks(pEnteringHook, pLeavingHook, pvContext);
+
+    mriCore_SetSemihostReturnValues(0, 0);
+    mriCore_FlagSemihostCallAsHandled();
+    return 1;
 }

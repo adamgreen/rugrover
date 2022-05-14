@@ -107,3 +107,13 @@ mriNewlib_SemihostClose:
 mriNewlib_SemihostFStat:
     bkpt    MRI_NEWLIB_SEMIHOST_FSTAT
     bx      lr
+
+
+    .global mriSetDebuggerHooks
+    .type mriSetDebuggerHooks, function
+    /* extern "C" void mriSetDebuggerHooks(MriDebuggerHookPtr pEnteringHook, MriDebuggerHookPtr pLeavingHook, void* pvContext);
+       Tells MRI which hook functions to call when entering and leaving the debugger.
+    */
+mriSetDebuggerHooks:
+    bkpt    MRI_NEWLIB_SEMIHOST_SET_HOOKS
+    bx      lr

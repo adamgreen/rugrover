@@ -11,14 +11,17 @@
     GNU General Public License for more details.
 */
 /* Beginnings of firmware for RugRover robot. */
+#include <stdio.h>
 #include <app_error.h>
 #include <nrf_delay.h>
 #include <nrf_gpio.h>
 #include <nrf_drv_gpiote.h>
 #include <sys/stat.h>
-#include <stdio.h>
+#include <core/mri.h>
 
 static void gpioteHandler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action);
+static void enteringDebuggerHook(void* pvContext);
+static void leavingDebuggerHook(void* pvContext);
 
 int main(void)
 {
@@ -77,6 +80,7 @@ int main(void)
     APP_ERROR_CHECK(errorCode);
     nrf_drv_gpiote_in_event_enable(button3Pin, true);
 
+    mriSetDebuggerHooks(enteringDebuggerHook, leavingDebuggerHook, NULL);
     while (true)
     {
         //*(volatile uint32_t*)0xFFFFFFFF; // = 0xbaadf00d;
@@ -95,4 +99,27 @@ static void gpioteHandler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action
 {
     // Crash when button 3 is pressed.
     *(volatile uint32_t*)0xFFFFFFFF; // = 0xbaadf00d;
+}
+
+/* Flag set to flag that MRI hooks should be disabled when writing to stdout. */
+extern volatile int g_mriDisableHooks;
+
+static void enteringDebuggerHook(void* pvContext)
+{
+    if (g_mriDisableHooks)
+    {
+        return;
+    }
+
+    // Turn both LEDs off when entering debugger.
+    nrf_gpio_pin_set(19);
+    nrf_gpio_pin_set(20);
+}
+
+static void leavingDebuggerHook(void* pvContext)
+{
+    if (g_mriDisableHooks)
+    {
+        return;
+    }
 }

@@ -17,8 +17,9 @@
 #ifndef MRI_NEWLIB_STUBS_H_
 #define MRI_NEWLIB_STUBS_H_
 
-#define MRI_NEWLIB_SEMIHOST_MIN         0xf7
+#define MRI_NEWLIB_SEMIHOST_MIN         0xf6
 
+#define MRI_NEWLIB_SEMIHOST_SET_HOOKS   0xf6
 #define MRI_NEWLIB_SEMIHOST_WRITE       0xf7
 #define MRI_NEWLIB_SEMIHOST_READ        0xf8
 #define MRI_NEWLIB_SEMIHOST_OPEN        0xf9
