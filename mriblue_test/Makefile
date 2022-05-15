@@ -1,5 +1,5 @@
-PROJECT_NAME     := RugRover
-TARGETS          := RugRover
+PROJECT_NAME     := Test
+TARGETS          := Test
 OUTPUT_DIRECTORY := _build
 
 SDK_ROOT := ../nrfSDK
@@ -8,7 +8,7 @@ PROJ_DIR := .
 MRI_PATH := ../mri
 MRIBLUE_PATH := ../mriblue_boot
 
-$(OUTPUT_DIRECTORY)/RugRover.out: \
+$(OUTPUT_DIRECTORY)/Test.out: \
   LINKER_SCRIPT  := nrf52.ld
 
 # Source files common to all targets
@@ -197,7 +197,7 @@ LDFLAGS += -Wl,--allow-multiple-definition
 .PHONY: $(TARGETS) default all clean help flash flash_softdevice sdk mri
 
 # Default target - first one defined
-default: RugRover
+default: Test
 
 # Print all targets that can be built
 help:
@@ -218,7 +218,7 @@ TEMPLATE_PATH := $(SDK_ROOT)/components/toolchain/gcc
 $(foreach target, $(TARGETS), $(call define_target, $(target)))
 
 # Flash the program
-flash: $(OUTPUT_DIRECTORY)/RugRover.hex
+flash: $(OUTPUT_DIRECTORY)/Test.hex
 	@echo Flashing: $<
 	$(NRF_TOOL_PATH)/nrfjprog/nrfjprog --program $< -f nrf52 --sectorerase
 	$(NRF_TOOL_PATH)/nrfjprog/nrfjprog --reset -f nrf52
