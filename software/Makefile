@@ -36,16 +36,20 @@ SRC_FILES += \
   $(SDK_ROOT)/components/softdevice/common/softdevice_handler/softdevice_handler.c \
   $(SDK_ROOT)/components/drivers_nrf/timer/nrf_drv_timer.c \
   $(SDK_ROOT)/components/libraries/simple_timer/app_simple_timer.c \
-  $(PROJ_DIR)/main.c \
+  $(PROJ_DIR)/main.cpp \
   $(PROJ_DIR)/gcc_startup_nrf52.S \
   $(PROJ_DIR)/newlib_stubs.S \
   $(PROJ_DIR)/newlib_retarget.c \
+  $(PROJ_DIR)/Adafruit-GFX-Library/Adafruit_GFX.cpp \
+  $(PROJ_DIR)/OLED_SH1106/OLED_SH1106.cpp \
 
 # Include folders common to all targets
 INC_FOLDERS += \
   $(PROJ_DIR) \
   $(MRI_PATH) \
   $(MRIBLUE_PATH) \
+  $(PROJ_DIR)/Adafruit-GFX-Library \
+  $(PROJ_DIR)/OLED_SH1106 \
   $(SDK_ROOT)/components/drivers_nrf/comp \
   $(SDK_ROOT)/components/drivers_nrf/twi_master \
   $(SDK_ROOT)/components/softdevice/s132/headers \
