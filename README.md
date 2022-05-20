@@ -126,4 +126,9 @@ Once I had the mechanical design mostly figured out, I moved onto the design of 
 Once the mechanical and electronics were far enough along I could start writing the software. This should be where I spend the most amount of time. I will provide links to notes about each software component as I write its code.
 
 **Software Components:**
-* [mriblue debug monitor](mriblue/README.md#mriblue): A FLASH resident bootloader and debug monitor that runs on the nRF52832 to enable wireless debugging and programming over Bluetooth Low Energy (BLE) from GDB.
+* [mriblue Debug Monitor](mriblue/README.md#mriblue): A FLASH resident bootloader and debug monitor that runs on the nRF52832 to enable wireless debugging and programming over Bluetooth Low Energy (BLE) from GDB.
+* [SH1106 SPI based OLED Driver](software/OLED_SH1106/):
+  * An Adafruit GFX based display driver.
+  * The drawing primitives just modify an in-memory version of the display's frame buffer.
+  * A separate refresh() method is used to copy that frame buffer to the SH1106 OLED driver.
+  * The refresh() copy makes use of the nRF52's SPI Master peripheral's EasyDMA functionality to perform most of this SPI transfer in the background with little CPU intervention. The CPU is just used to setup the transfer for each of the 8  frame buffer pages.
