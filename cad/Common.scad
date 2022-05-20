@@ -561,6 +561,23 @@ module counterWeightHolderHoleForBumperStandoff() {
 
 
 
+
+// Piece to be attached inside of the counter weight holder to keep the tungsten putty from oozing out.
+// I will probably tack weld it inplace with soldering iron.
+module counterWeightHolderBottom() {
+    spanAngle = counterWeightHolderAngle-1.5*counterWeightHolderInsideOffsetAngle;
+    difference() {
+        rotate([0, 0, 90-spanAngle/2])
+            rotate_extrude(angle=spanAngle)
+                translate([counterWeightHolderOffsetRadius, -counterWeightHolderThickness/2-counterWeightHolderSwitchClearance])
+                    square([counterWeightDiameter, counterWeightHolderThickness], center=true);
+        counterWeightHolder();
+    }
+}
+
+
+
+
 // Sets the smoothness of arcs/circles.
 $fs = 0.1;
 $fa = 1;

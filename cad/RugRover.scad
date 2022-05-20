@@ -39,6 +39,8 @@ rotate([0, 180, 180]) {
     }
     %bumperSkirt();
     counterWeightHolder();
+    counterWeightHolderBottom();
+
 
     // Draw ground plane to see if all wheels fall on it.
     *translate([0, 0, wheelZOffset+wheelDiameter/2-0.001])

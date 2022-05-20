@@ -10,9 +10,9 @@
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 */
-// The holder to contain the tungsten putty counterweight for my RugRover bot.
+// The bottom of the holder to keep the tungsten putty counterweight from oozing out.
 include <Common.scad>
 
 rotate([0, 180, 0])
-    counterWeightHolder();
+    counterWeightHolderBottom();
 

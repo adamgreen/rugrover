@@ -86,6 +86,10 @@ When it comes to robot building, the mechanical portions are my weakest area. On
 
 ![Chassis Top](cad/ChassisTop.png)
 
+**Lessons Learned:**
+* The [caster](https://www.adafruit.com/product/2942) I used on this robot is probably too large for the size of the robot. Its size makes it difficult to concentrate the mass over the caster by placing heavy things like the batteries near it on the bottom. I now see why the original RugWarrior Pro used the smaller non-swiveling ball caster. It took up less space and allowed the battery pack to be placed between the axle and the caster.
+* [Tungsten putty](https://www.amazon.com/Red-Dirt-Derby-Tungsten-Pinewood/dp/B06Y5FDLL6) is actually a soft moving liquid. The putty I placed in the cylindrical 3D printed holder at the back of the robot leaked out over time and some of it flowed out into the rear microswitch. I was able to take the robot apart and clean up the leaked putty. I designed and printed a bottom for the holder that I welded in with a soldering iron to contain the tungsten putty inside.
+
 ## Electronics Design
 Once I had the mechanical design mostly figured out, I moved onto the design of the electronics in [KiCad](https://www.kicad.org).
 
