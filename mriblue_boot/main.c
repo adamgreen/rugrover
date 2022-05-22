@@ -323,7 +323,7 @@ int main(void)
     elevateInterruptPriorities();
     mriInit(MRI_PRIORITY_STRING(MRIBLUE_PRIORITY));
 
-    // Let the BLE stack advertising that it is available for connections.
+    // Let the BLE stack advertise that it is available for connections.
     startTimers();
     startAdvertising();
 
@@ -1654,7 +1654,9 @@ static char unescapeByte(char charToUnescape)
 */
 static uint32_t  handleFlashDoneCommand(Buffer* pBuffer)
 {
-    /* We do all of the work as the vFlashErase/vFlashWrite commands come in so there is nothing to do here. */
+    // Want to reset on next continue to place microcontroller in clean state for running new code now in FLASH.
+    RequestResetOnNextContinue();
+
     PrepareStringResponse("OK");
     return HANDLER_RETURN_HANDLED;
 }
