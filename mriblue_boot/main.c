@@ -119,9 +119,9 @@
 // * Interval Max * (Peripheral Latency + 1) of 2 seconds or less.
 // * Supervision Timeout greater than Interval Max * (Peripheral Latency + 1) * 3.
 // Minimum acceptable connection interval in ms (7.5 ms is smallest allowed). Connection interval uses 1.25 ms units.
-#define MIN_CONN_INTERVAL               MSEC_TO_UNITS(15, UNIT_1_25_MS)
+#define MIN_CONN_INTERVAL               MSEC_TO_UNITS(7.5, UNIT_1_25_MS)
 // Maximum acceptable connection interval in ms. Connection interval uses 1.25 ms units.
-#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(15, UNIT_1_25_MS)
+#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(7.5, UNIT_1_25_MS)
 // The number of the connection interval events that the peripheral can ignore before response is required.
 #define SLAVE_LATENCY                   0
 
