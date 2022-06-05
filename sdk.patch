@@ -1,6 +1,6 @@
 diff -Naurb nrfSDK2/components/ble/ble_advertising/ble_advertising.c nrfSDK/components/ble/ble_advertising/ble_advertising.c
 --- nrfSDK2/components/ble/ble_advertising/ble_advertising.c	2017-05-05 14:10:54.000000000 -0700
-+++ nrfSDK/components/ble/ble_advertising/ble_advertising.c	2021-02-27 11:15:56.000000000 -0800
++++ nrfSDK/components/ble/ble_advertising/ble_advertising.c	2022-04-27 00:50:11.000000000 -0700
 @@ -322,7 +322,7 @@
              p_adv_params->p_whitelist = &m_whitelist;
          #endif
@@ -21,7 +21,7 @@ diff -Naurb nrfSDK2/components/ble/ble_advertising/ble_advertising.c nrfSDK/comp
          ret = ble_advdata_set(&m_advdata, NULL);
 diff -Naurb nrfSDK2/components/ble/ble_services/ble_nus/ble_nus.c nrfSDK/components/ble/ble_services/ble_nus/ble_nus.c
 --- nrfSDK2/components/ble/ble_services/ble_nus/ble_nus.c	2017-05-05 14:10:54.000000000 -0700
-+++ nrfSDK/components/ble/ble_services/ble_nus/ble_nus.c	2021-02-26 01:55:39.000000000 -0800
++++ nrfSDK/components/ble/ble_services/ble_nus/ble_nus.c	2022-04-27 00:50:11.000000000 -0700
 @@ -131,7 +131,7 @@
      memset(&cccd_md, 0, sizeof(cccd_md));
  
@@ -55,7 +55,7 @@ diff -Naurb nrfSDK2/components/ble/ble_services/ble_nus/ble_nus.c nrfSDK/compone
      attr_md.rd_auth = 0;
 diff -Naurb nrfSDK2/components/ble/ble_services/ble_nus/ble_nus.h nrfSDK/components/ble/ble_services/ble_nus/ble_nus.h
 --- nrfSDK2/components/ble/ble_services/ble_nus/ble_nus.h	2017-05-05 14:10:54.000000000 -0700
-+++ nrfSDK/components/ble/ble_services/ble_nus/ble_nus.h	2021-02-26 01:52:16.000000000 -0800
++++ nrfSDK/components/ble/ble_services/ble_nus/ble_nus.h	2022-04-27 00:50:11.000000000 -0700
 @@ -86,6 +86,9 @@
   */
  typedef struct
@@ -68,7 +68,7 @@ diff -Naurb nrfSDK2/components/ble/ble_services/ble_nus/ble_nus.h nrfSDK/compone
  
 diff -Naurb nrfSDK2/components/drivers_nrf/hal/nrf_spim.h nrfSDK/components/drivers_nrf/hal/nrf_spim.h
 --- nrfSDK2/components/drivers_nrf/hal/nrf_spim.h	2017-05-05 14:10:54.000000000 -0700
-+++ nrfSDK/components/drivers_nrf/hal/nrf_spim.h	2021-02-22 15:25:46.000000000 -0800
++++ nrfSDK/components/drivers_nrf/hal/nrf_spim.h	2022-04-27 00:50:11.000000000 -0700
 @@ -306,7 +306,7 @@
   */
  __STATIC_INLINE void nrf_spim_tx_buffer_set(NRF_SPIM_Type * p_reg,
@@ -105,9 +105,57 @@ diff -Naurb nrfSDK2/components/drivers_nrf/hal/nrf_spim.h nrfSDK/components/driv
  {
      p_reg->RXD.PTR    = (uint32_t)p_buffer;
      p_reg->RXD.MAXCNT = length;
+diff -Naurb nrfSDK2/components/drivers_nrf/qdec/nrf_drv_qdec.c nrfSDK/components/drivers_nrf/qdec/nrf_drv_qdec.c
+--- nrfSDK2/components/drivers_nrf/qdec/nrf_drv_qdec.c	2017-05-05 14:10:54.000000000 -0700
++++ nrfSDK/components/drivers_nrf/qdec/nrf_drv_qdec.c	2022-06-04 01:36:08.000000000 -0700
+@@ -133,21 +133,17 @@
+     {
+         m_qdec_event_handler = event_handler;
+     }
+-    else
++
++    if (p_config->pselled != 0xFFFFFFFF)
+     {
+-        err_code = NRF_ERROR_INVALID_PARAM;
+-        NRF_LOG_WARNING("Function: %s, error code: %s.\r\n", (uint32_t)__func__, (uint32_t)ERR_TO_STR(err_code));
+-        return err_code;
++        nrf_gpio_cfg_input(p_config->pselled, NRF_GPIO_PIN_NOPULL);
+     }
+-
+     nrf_qdec_sampleper_set(p_config->sampleper);
+-    nrf_gpio_cfg_input(p_config->pselled, NRF_GPIO_PIN_NOPULL);
+     nrf_gpio_cfg_input(p_config->psela, NRF_GPIO_PIN_NOPULL);
+     nrf_gpio_cfg_input(p_config->pselb, NRF_GPIO_PIN_NOPULL);
+     nrf_qdec_pio_assign( p_config->psela, p_config->pselb, p_config->pselled);
+     nrf_qdec_ledpre_set(p_config->ledpre);
+     nrf_qdec_ledpol_set(p_config->ledpol);
+-    nrf_qdec_shorts_enable(NRF_QDEC_SHORT_REPORTRDY_READCLRACC_MASK);
+ 
+     if (p_config->dbfen)
+     {
+@@ -162,6 +158,7 @@
+ 
+     if (p_config->reportper != NRF_QDEC_REPORTPER_DISABLED)
+     {
++        nrf_qdec_shorts_enable(NRF_QDEC_SHORT_REPORTRDY_READCLRACC_MASK);
+         nrf_qdec_reportper_set(p_config->reportper);
+         int_mask |= NRF_QDEC_INT_REPORTRDY_MASK;
+     }
+@@ -171,8 +168,11 @@
+         int_mask |= NRF_QDEC_INT_SAMPLERDY_MASK;
+     }
+ 
++    if (event_handler)
++    {
+     nrf_qdec_int_enable(int_mask);
+     nrf_drv_common_irq_enable(QDEC_IRQn, p_config->interrupt_priority);
++    }
+ 
+     m_state = NRF_DRV_STATE_INITIALIZED;
+ 
 diff -Naurb nrfSDK2/components/drivers_nrf/spi_master/nrf_drv_spi.c nrfSDK/components/drivers_nrf/spi_master/nrf_drv_spi.c
 --- nrfSDK2/components/drivers_nrf/spi_master/nrf_drv_spi.c	2017-05-05 14:10:54.000000000 -0700
-+++ nrfSDK/components/drivers_nrf/spi_master/nrf_drv_spi.c	2021-02-22 14:16:23.000000000 -0800
++++ nrfSDK/components/drivers_nrf/spi_master/nrf_drv_spi.c	2022-04-27 00:50:11.000000000 -0700
 @@ -127,7 +127,7 @@
      //  are not concurrently used in IRQ handlers and main line code]
      uint8_t         ss_pin;
@@ -131,7 +179,7 @@ diff -Naurb nrfSDK2/components/drivers_nrf/spi_master/nrf_drv_spi.c nrfSDK/compo
      xfer_desc.p_tx_buffer = p_tx_buffer;
 diff -Naurb nrfSDK2/components/drivers_nrf/spi_master/nrf_drv_spi.h nrfSDK/components/drivers_nrf/spi_master/nrf_drv_spi.h
 --- nrfSDK2/components/drivers_nrf/spi_master/nrf_drv_spi.h	2017-05-05 14:10:54.000000000 -0700
-+++ nrfSDK/components/drivers_nrf/spi_master/nrf_drv_spi.h	2021-02-22 14:08:02.000000000 -0800
++++ nrfSDK/components/drivers_nrf/spi_master/nrf_drv_spi.h	2022-04-27 00:50:11.000000000 -0700
 @@ -207,9 +207,9 @@
  typedef struct
  {
@@ -158,7 +206,7 @@ diff -Naurb nrfSDK2/components/drivers_nrf/spi_master/nrf_drv_spi.h nrfSDK/compo
  /**
 diff -Naurb nrfSDK2/components/softdevice/s130/headers/nrf_svc.h nrfSDK/components/softdevice/s130/headers/nrf_svc.h
 --- nrfSDK2/components/softdevice/s130/headers/nrf_svc.h	2016-04-20 15:57:06.000000000 -0700
-+++ nrfSDK/components/softdevice/s130/headers/nrf_svc.h	2021-02-17 01:58:55.000000000 -0800
++++ nrfSDK/components/softdevice/s130/headers/nrf_svc.h	2022-04-27 00:50:11.000000000 -0700
 @@ -52,7 +52,7 @@
  #define SVCALL(number, return_type, signature) return_type __svc(number) signature
  #elif defined (__GNUC__)
@@ -170,7 +218,7 @@ diff -Naurb nrfSDK2/components/softdevice/s130/headers/nrf_svc.h nrfSDK/componen
  #endif
 diff -Naurb nrfSDK2/components/toolchain/gcc/Makefile.common nrfSDK/components/toolchain/gcc/Makefile.common
 --- nrfSDK2/components/toolchain/gcc/Makefile.common	2017-05-05 13:10:30.000000000 -0700
-+++ nrfSDK/components/toolchain/gcc/Makefile.common	2021-02-17 01:58:55.000000000 -0800
++++ nrfSDK/components/toolchain/gcc/Makefile.common	2022-04-27 00:50:11.000000000 -0700
 @@ -154,6 +154,7 @@
  	$(NO_ECHO)$(DUMP_FILE_LIST) > $(@:.out=.in)
  	@echo Linking target: $@
@@ -181,7 +229,7 @@ diff -Naurb nrfSDK2/components/toolchain/gcc/Makefile.common nrfSDK/components/t
  	-@echo ''
 diff -Naurb nrfSDK2/components/toolchain/gcc/Makefile.posix nrfSDK/components/toolchain/gcc/Makefile.posix
 --- nrfSDK2/components/toolchain/gcc/Makefile.posix	2017-05-05 13:10:30.000000000 -0700
-+++ nrfSDK/components/toolchain/gcc/Makefile.posix	2021-02-17 01:58:55.000000000 -0800
++++ nrfSDK/components/toolchain/gcc/Makefile.posix	2022-04-27 00:50:11.000000000 -0700
 @@ -1,3 +1,3 @@
 -GNU_INSTALL_ROOT := /usr/local/gcc-arm-none-eabi-4_9-2015q3
 -GNU_VERSION := 4.9.3
