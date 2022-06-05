@@ -256,6 +256,7 @@ void OLED_SH1106::enableDisplay(bool enable)
 void OLED_SH1106::clearScreen()
 {
     memset(m_frame, 0, sizeof(m_frame));
+    setCursor(0, 0);
 }
 
 int OLED_SH1106::printf(const char* pFormat, ...)
