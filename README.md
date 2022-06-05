@@ -22,7 +22,7 @@ Having recently reread the book, I thought it would be fun to build a comparable
   * LCD
 * Add in IR based downward facing cliff detectors so that I can run the robot in my loft and hopefully write software that stops it from trying to make a run down the stairs.
 * More modern nRF52 BLE capable microcontroller:
-  * I hope to exploit the BLE capabilities of this microcontroller to enable wireless debugging and programming.
+  * Exploit the BLE capabilities of this microcontroller to enable wireless debugging and programming.
   * Program in C/C++ using GCC.
   * Debug code using GDB.
 * Mechanical components will be designed in CAD and 3D printed.
@@ -131,4 +131,4 @@ Once the mechanical and electronics were far enough along I could start writing 
   * An [Adafruit GFX](https://github.com/adafruit/Adafruit-GFX-Library) based display driver.
   * The drawing primitives just modify an in-memory version of the display's frame buffer.
   * A separate refresh() method is used to copy that frame buffer to the SH1106 OLED driver.
-  * The refresh() copy makes use of the nRF52's SPI Master peripheral's EasyDMA functionality to perform most of this SPI transfer in the background with little CPU intervention. The CPU is just used to setup the transfer for each of the 8  frame buffer pages.
+  * The refresh() copy makes use of the nRF52's SPI Master peripheral's EasyDMA functionality to perform most of this SPI transfer in the background with little CPU intervention. The CPU is just used to setup the transfer for each of the 8 frame buffer pages.

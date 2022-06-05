@@ -25,6 +25,9 @@ hardware/shield.step
 # Makefile will install nRF SDK in this folder.
 nrfSDK/
 
+# I keep an extra copy of the nRF SDK for creating diffs.
+nrfSDK2/
+
 # User should install Nordic tools in this folder.
 nrfTools/mergehex
 nrfTools/nrfjprog
