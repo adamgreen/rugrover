@@ -36,12 +36,15 @@ SRC_FILES += \
   $(SDK_ROOT)/components/softdevice/common/softdevice_handler/softdevice_handler.c \
   $(SDK_ROOT)/components/drivers_nrf/timer/nrf_drv_timer.c \
   $(SDK_ROOT)/components/libraries/simple_timer/app_simple_timer.c \
+  $(SDK_ROOT)/components/drivers_nrf/qdec/nrf_drv_qdec.c \
   $(PROJ_DIR)/main.cpp \
   $(PROJ_DIR)/gcc_startup_nrf52.S \
   $(PROJ_DIR)/newlib_stubs.S \
   $(PROJ_DIR)/newlib_retarget.c \
   $(PROJ_DIR)/Adafruit-GFX-Library/Adafruit_GFX.cpp \
   $(PROJ_DIR)/OLED_SH1106/OLED_SH1106.cpp \
+  $(PROJ_DIR)/QuadratureDecoder/QuadratureDecoderHardware.cpp \
+  $(PROJ_DIR)/QuadratureDecoder/QuadratureDecoderSoftware.cpp \
 
 # Include folders common to all targets
 INC_FOLDERS += \
@@ -49,7 +52,6 @@ INC_FOLDERS += \
   $(MRI_PATH) \
   $(MRIBLUE_PATH) \
   $(PROJ_DIR)/Adafruit-GFX-Library \
-  $(PROJ_DIR)/OLED_SH1106 \
   $(SDK_ROOT)/components/drivers_nrf/comp \
   $(SDK_ROOT)/components/drivers_nrf/twi_master \
   $(SDK_ROOT)/components/softdevice/s132/headers \
@@ -144,7 +146,7 @@ CFLAGS += -DNRF52_PAN_54
 CFLAGS += -DNRF52_PAN_31
 CFLAGS += -DNRF52_PAN_51
 CFLAGS += -DNRF52_PAN_36
-CFLAGS += -DCONFIG_GPIO_AS_PINRESET
+CFLAGS += -DCONFIG_NFCT_PINS_AS_GPIOS
 CFLAGS += -DNRF52_PAN_15
 CFLAGS += -DSWI_DISABLE0
 CFLAGS += -DNRF52_PAN_20
@@ -178,7 +180,7 @@ ASMFLAGS += -DNRF52_PAN_54
 ASMFLAGS += -DNRF52_PAN_31
 ASMFLAGS += -DNRF52_PAN_51
 ASMFLAGS += -DNRF52_PAN_36
-ASMFLAGS += -DCONFIG_GPIO_AS_PINRESET
+ASMFLAGS += -DCONFIG_NFCT_PINS_AS_GPIOS
 ASMFLAGS += -DNRF52_PAN_15
 ASMFLAGS += -DSWI_DISABLE0
 ASMFLAGS += -DNRF52_PAN_20
@@ -212,6 +214,7 @@ help:
 	@echo   all - Builds all supported targets - nrf52832_xxaa.
 	@echo   erase - Erases all of the FLASH on the nRF5 device.
 	@echo   flash_softdevice - Flashes the Nordic BLE Soft Device. Will erase device first.
+	@echo   flash_mri - Builds and flashes the mriblue bootloader.
 	@echo   flash - Just flashes your application firmware. flash_softdevice must be run at least once before.
 	@echo 	$(TARGETS)
 
@@ -227,10 +230,17 @@ flash: $(OUTPUT_DIRECTORY)/RugRover.hex
 	$(NRF_TOOL_PATH)/nrfjprog/nrfjprog --program $< -f nrf52 --sectorerase
 	$(NRF_TOOL_PATH)/nrfjprog/nrfjprog --reset -f nrf52
 
+# Flash the mriblue bootloader.
+flash_mri:
+	@echo Building and flashing mriblue_boot
+	@$(MAKE) --no-print-directory -C ../mriblue_boot mri flash
+
+
 # Flash softdevice
 flash_softdevice: erase
-	@echo Flashing: s132_nrf52_3.0.0_softdevice.hex
+	@echo Flashing: s132_nrf52_3.0.0_softdevice.hex and setting UICR to use NFC pins as GPIO.
 	$(NRF_TOOL_PATH)/nrfjprog/nrfjprog --program $(SDK_ROOT)/components/softdevice/s132/hex/s132_nrf52_3.0.0_softdevice.hex -f nrf52 --sectorerase
+	$(NRF_TOOL_PATH)/nrfjprog/nrfjprog -f nrf52  --memwr 0x1000120C --val 0xFFFFFFFE
 	$(NRF_TOOL_PATH)/nrfjprog/nrfjprog --reset -f nrf52
 
 # UNDONE: Add a rule to build and install mriblue_boot as well.
