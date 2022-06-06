@@ -1093,7 +1093,7 @@ static void checkForButtonPress()
 
 static void startAdvertising(void)
 {
-    memset(g_whitelistPeers, PM_PEER_ID_INVALID, ARRAY_SIZE(g_whitelistPeers));
+    memset(g_whitelistPeers, PM_PEER_ID_INVALID, sizeof(g_whitelistPeers));
     g_whitelistPeerCount = ARRAY_SIZE(g_whitelistPeers);
 
     getPeerList(g_whitelistPeers, &g_whitelistPeerCount);
@@ -2289,7 +2289,7 @@ static int isInstructionNewlibSemihostBreakpoint(uint16_t instruction)
     static const uint16_t newlibSemihostBreakpointMinMachineCode = 0xbe00 | MRI_NEWLIB_SEMIHOST_MIN;
     static const uint16_t newlibSemihostBreakpointMaxMachineCode = 0xbe00 | MRI_NEWLIB_SEMIHOST_MAX;
 
-    return (instruction >= newlibSemihostBreakpointMinMachineCode ||
+    return (instruction >= newlibSemihostBreakpointMinMachineCode &&
             instruction <=  newlibSemihostBreakpointMaxMachineCode);
 }
 
