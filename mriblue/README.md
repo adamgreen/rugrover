@@ -47,7 +47,7 @@ The setup for my mriblue project, shown above, shares some similarities with the
 * It too has a program (only available for macOS) which runs on the same computer as GDB:
   * It is called [mriblue](../mriblue/).
   * GDB also communicates with it over TCP/IP, on port 3333 by default.
-  * Unlike OpenOCD, it doesn't have any knowledge of the GDB remote debug protocol. It is just a bridge between TCP/IP and BLE. It could be used to bridge serial traffic from BLE to TCP/IP for any application except that it is explicitly written to to find and connect to devices running the mriblue_boot bootloader.
+  * Unlike OpenOCD, it doesn't have any knowledge of the GDB remote debug protocol. It is just a bridge between TCP/IP and BLE. It could be used to bridge serial traffic from BLE to TCP/IP for any application except that it is explicitly written to find and connect to devices running the mriblue_boot bootloader.
 * Unlike a typical OpenOCD setup, mriblue requires no special debug hardware. The code which implements the GDB remote debug protocol and talks with the debug access port on the Cortex-M4F core is all contained in the [mriblue_boot bootloader](../mriblue_boot/) which runs directly on the nRF52832 microcontroller alongside the robot's firmware. The next couple of sections will give an overview of how it accomplishes this by sharing FLASH memory and CPU cycles via the NVIC's prioritized interrupts.
 
 ## mriblue_boot FLASH Memory Layout
