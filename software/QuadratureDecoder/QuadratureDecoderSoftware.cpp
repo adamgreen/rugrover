@@ -106,7 +106,7 @@ void QuadratureDecoderSoftware::pinChanged()
 
     // Look up delta based on current and previous state.
     int32_t encoderDelta = m_stateTable[m_prevEncoder][currEncoder];
-    nrf_atomic_u32_add(&m_count, encoderDelta);
+    m_count += encoderDelta;
 
     // Remember current encoder state.
     m_prevEncoder = currEncoder;
