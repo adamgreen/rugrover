@@ -976,7 +976,7 @@
     (effects (font (size 1.27 1.27)) (justify left bottom))
     (uuid 6aaffcf3-cf86-4a58-8728-82e65c894e2d)
   )
-  (text "P0.2" (at 141.986 118.11 0)
+  (text "P0.21" (at 141.986 118.11 0)
     (effects (font (size 1.27 1.27)) (justify left bottom))
     (uuid 6d469a6e-a229-4513-b39d-b9fa0023f65b)
   )
