@@ -47,10 +47,10 @@
 
 
 
-// UNDONE: Currently using switch 4 which is also connected to RMOTOR_DIAG by my shield.
+// UNDONE: Currently using switch 2 which is also connected to IMU_INT by my shield.
 // The pin connected to a switch to be pressed to enable pairing and during reset to
 // erase previous bonding information from Peer Manager.
-#define BONDING_SWITCH_PIN              NRF_GPIO_PIN_MAP(0, 16)
+#define BONDING_SWITCH_PIN              NRF_GPIO_PIN_MAP(0, 14)
 
 // The name of this device.
 #define DEVICE_NAME                     "mriblue"
@@ -1341,11 +1341,7 @@ static uint32_t waitForFlashOperationToCompleteAndCheckForError(void);
 static uint32_t  handleFlashWriteCommand(Buffer* pBuffer);
 static uint32_t writeToFlash(Buffer* pBuffer, AddressLength* pAddressLength);
 static uint32_t alignStartOfWriteByCopyingExistingFlashData(uint8_t* pDest, uint8_t* pSrc, uint32_t unalignedStart);
-static uint32_t copyEscapedBytes(void* pvDest, size_t destSize, Buffer* pBuffer);
-static char unescapeCharIfNecessary(Buffer* pBuffer, char currentChar);
-static int isEscapePrefixChar(char charToCheck);
-static char readNextCharAndUnescape(Buffer* pBuffer);
-static char unescapeByte(char charToUnescape);
+static uint32_t copyBytes(void* pvDest, size_t destSize, Buffer* pBuffer);
 static uint32_t  handleFlashDoneCommand(Buffer* pBuffer);
 static uint32_t clearCrashDumpAndReset(void);
 static void flagCrashDumpAsInvalid(void);
@@ -1562,8 +1558,8 @@ static uint32_t writeToFlash(Buffer* pBuffer, AddressLength* pAddressLength)
     bytesLeft -= size;
     pDest += size;
 
-    // Copy the escaped bytes provided by GDB into aligned buffer.
-    size = copyEscapedBytes(pDest, bytesLeft, pBuffer);
+    // Copy the bytes provided by GDB into aligned buffer.
+    size = copyBytes(pDest, bytesLeft, pBuffer);
     bytesLeft -= size;
     pDest += size;
 
@@ -1599,7 +1595,7 @@ static uint32_t alignStartOfWriteByCopyingExistingFlashData(uint8_t* pDest, uint
     return pDest - pStart;
 }
 
-static uint32_t copyEscapedBytes(void* pvDest, size_t destSize, Buffer* pBuffer)
+static uint32_t copyBytes(void* pvDest, size_t destSize, Buffer* pBuffer)
 {
     uint8_t* pStart = pvDest;
     uint8_t* pDest = pvDest;
@@ -1617,41 +1613,9 @@ static uint32_t copyEscapedBytes(void* pvDest, size_t destSize, Buffer* pBuffer)
             break;
         }
 
-        // UNDONE: Could catch this error as well.
-        currChar = unescapeCharIfNecessary(pBuffer, currChar);
         *pDest++ = currChar;
     }
     return pDest - pStart;
-}
-
-static char unescapeCharIfNecessary(Buffer* pBuffer, char currentChar)
-{
-    if (isEscapePrefixChar(currentChar))
-        return readNextCharAndUnescape(pBuffer);
-
-    return currentChar;
-}
-
-static int isEscapePrefixChar(char charToCheck)
-{
-    return charToCheck == '}';
-}
-
-static char readNextCharAndUnescape(Buffer* pBuffer)
-{
-    char nextChar;
-
-    __try
-        nextChar = Buffer_ReadChar(pBuffer);
-    __catch
-        __rethrow_and_return('\0');
-
-    return unescapeByte(nextChar);
-}
-
-static char unescapeByte(char charToUnescape)
-{
-    return charToUnescape ^ 0x20;
 }
 
 /* Handle the 'vFlashDone' command which lets us know that the FLASH update is now complete.
