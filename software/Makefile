@@ -37,6 +37,9 @@ SRC_FILES += \
   $(SDK_ROOT)/components/drivers_nrf/timer/nrf_drv_timer.c \
   $(SDK_ROOT)/components/libraries/simple_timer/app_simple_timer.c \
   $(SDK_ROOT)/components/drivers_nrf/qdec/nrf_drv_qdec.c \
+  $(SDK_ROOT)/components/drivers_nrf/pwm/nrf_drv_pwm.c \
+  $(SDK_ROOT)/components/drivers_nrf/saadc/nrf_drv_saadc.c \
+  $(SDK_ROOT)/components/drivers_nrf/hal/nrf_saadc.c \
   $(PROJ_DIR)/main.cpp \
   $(PROJ_DIR)/gcc_startup_nrf52.S \
   $(PROJ_DIR)/newlib_stubs.S \
@@ -45,6 +48,8 @@ SRC_FILES += \
   $(PROJ_DIR)/OLED_SH1106/OLED_SH1106.cpp \
   $(PROJ_DIR)/QuadratureDecoder/QuadratureDecoderHardware.cpp \
   $(PROJ_DIR)/QuadratureDecoder/QuadratureDecoderSoftware.cpp \
+  $(PROJ_DIR)/DualTB9051FTGDrivers/DualTB9051FTGDrivers.cpp \
+  $(PROJ_DIR)/SAADCScanner/SAADCScanner.cpp \
 
 # Include folders common to all targets
 INC_FOLDERS += \
