@@ -41,6 +41,7 @@
 #include <core/cmd_file.h>
 #include <core/core.h>
 #include <core/gdb_console.h>
+#include <core/signal.h>
 #include "newlib_stubs.h"
 #include "app.h"
 #include "CircularQueue.h"
@@ -257,6 +258,9 @@ static volatile uint32_t g_fakeAckCount = 0;
 
 // The latest boot flags that have been read from FLASH.
 static uint32_t g_bootFlags = BOOT_FLAGS_DEFAULT_VALUE;
+
+// A CTRL+C has been detected while MRI debug monitor is actively debugging.
+static bool g_controlC = false;
 
 
 
@@ -820,11 +824,18 @@ static void nordicUartServiceHandler(ble_nus_t * pNordicUartService, uint8_t * p
 
     uint32_t bytesWritten = CircularQueue_Write(&g_bleToMriQueue, pData, length);
     ASSERT ( bytesWritten == length );
-    if (g_crashState == CRASH_STATE_NONE && !isAlreadyDebugging() && length > 0)
+    if (g_crashState == CRASH_STATE_NONE && length > 0)
     {
-        // GDB is sending a command, probably a CTRL+C, so pend entry into DebugMon handler.
-        setControlCFlag();
-        setMonitorPending();
+        if (isAlreadyDebugging())
+        {
+            g_controlC = true;
+        }
+        else
+        {
+            // GDB is sending a command, probably a CTRL+C, so pend entry into DebugMon handler.
+            setControlCFlag();
+            setMonitorPending();
+        }
         g_ignoreAckCount = 0;
         g_fakeAckCount = 0;
     }
@@ -1956,6 +1967,7 @@ void __wrap_mriPlatform_EnteringDebugger(void)
     {
         restoreReasonCode();
     }
+    g_controlC = false;
     __real_mriPlatform_EnteringDebugger();
 }
 
@@ -2343,6 +2355,13 @@ static int writeToGdbConsoleWithNoWait(const TransferParameters* pParameters)
 
     mriCore_SetSemihostReturnValues(pParameters->bufferSize, 0);
     mriCore_FlagSemihostCallAsHandled();
+
+    if (g_controlC)
+    {
+        g_controlC = false;
+        SetSignalValue(SIGINT);
+        return 0;
+    }
     return 1;
 }
 
