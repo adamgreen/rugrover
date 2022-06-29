@@ -78,7 +78,7 @@ __isr_vector:
     .long   Reset_Handler
     .long   NMI_Handler
     .long   HardFault_Handler
-    .long   MemoryManagement_Handler
+    .long   MemManage_Handler
     .long   BusFault_Handler
     .long   UsageFault_Handler
     .long   0                           /*Reserved */
@@ -441,7 +441,7 @@ ForwardStub:
 
     FORWARD NMI_Handler 2
     FORWARD HardFault_Handler 3
-    FORWARD MemoryManagement_Handler 4
+    FORWARD MemManage_Handler 4
     FORWARD BusFault_Handler 5
     FORWARD UsageFault_Handler 6
     FORWARD SVC_Handler 11

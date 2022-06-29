@@ -828,6 +828,7 @@ static void nordicUartServiceHandler(ble_nus_t * pNordicUartService, uint8_t * p
     {
         if (isAlreadyDebugging())
         {
+            // MRI is already running, let writeToGdbConsoleWithNoWait() know that CTRL+C has been hit.
             g_controlC = true;
         }
         else
@@ -1004,7 +1005,7 @@ static void connectionParameterEventHandler(ble_conn_params_evt_t * pEvent)
 
 static void startTimers(void)
 {
-    // Start the timer used to check for button presses.
+    // Start the timer used to check for button presses and naggling the outbound BLE data.
     app_simple_timer_start(APP_SIMPLE_TIMER_MODE_REPEATED,
                             timeoutHandler,
                             NAGLE_TIME_MICROSECONDS,
@@ -1734,204 +1735,19 @@ static uint32_t handleMonitorHelpCommand(void)
 
 
 // *********************************************************************************************************************
-//  Implementation of the mriFaultHandler() function. This routine is called from the assembly language based
-//  fault handlers found in mriblue_asm.S when a fault is detected in the code. mriFaultHandler() actions depend on
-//  whether the fault was detected in low or high priority code or caused by a memory read/write initiated by GDB.
+//  Implementation of the Platform_HandleFaultFromHighPriorityCode() function.
+//  This handler will be called from the fault handlers (Hard Fault, etc.) if the faulting code is too high priority
+//  to debug. It will kick off a crash dump since MRI can't debug those type of faults.
 // *********************************************************************************************************************
-/* Lower nibble of EXC_RETURN in LR will have one of these values if interrupted code was running in thread mode.
-   Using PSP. */
-#define EXC_RETURN_THREADMODE_PROCESSSTACK  0xD
-/*  Using MSP. */
-#define EXC_RETURN_THREADMODE_MAINSTACK     0x9
-
-/* This is the order that ARMv7-M stacks registers when an exception takes place. */
-typedef struct ExceptionStack
-{
-    uint32_t    r0;
-    uint32_t    r1;
-    uint32_t    r2;
-    uint32_t    r3;
-    uint32_t    r12;
-    uint32_t    lr;
-    uint32_t    pc;
-    uint32_t    xpsr;
-    /* Need to check EXC_RETURN value in exception LR to see if these floating point registers have been stacked. */
-    uint32_t    s0;
-    uint32_t    s1;
-    uint32_t    s2;
-    uint32_t    s3;
-    uint32_t    s4;
-    uint32_t    s5;
-    uint32_t    s6;
-    uint32_t    s7;
-    uint32_t    s8;
-    uint32_t    s9;
-    uint32_t    s10;
-    uint32_t    s11;
-    uint32_t    s12;
-    uint32_t    s13;
-    uint32_t    s14;
-    uint32_t    s15;
-    uint32_t    fpscr;
-} ExceptionStack;
-
-
-static ExceptionStack* getExceptionStack(uint32_t excReturn, uint32_t psp, uint32_t msp);
-static bool isDebugThreadActive();
-static void setFaultDetectedFlag();
-static bool isImpreciseBusFault();
-static void advancePCToNextInstruction(ExceptionStack* pExceptionStack);
-static int isInstruction32Bit(uint16_t firstWordOfInstruction);
-static void clearFaultStatusBits();
-static bool isExceptionPriorityLowEnoughToDebug(uint32_t exceptionNumber);
-static uint32_t getInterruptPriority(uint32_t exceptionNumber);
-static void recordAndClearFaultStatusBits(void);
-static void setPendedFromFaultBit(void);
 static void resetMriFlags(void);
 
-// This handler will be called from the fault handlers (Hard Fault, etc.)
-// If the fault occurred in low priority code then pend a DebugMon interrupt so that MRI can be used to debug it.
-// If it was in a high priority interrupt then kick off a crash dump since MRI can't debug those type of faults.
-int mriFaultHandler(uint32_t psp, uint32_t msp, uint32_t excReturn)
+void Platform_HandleFaultFromHighPriorityCode(void)
 {
-    const uint32_t debugMonExceptionNumber = (uint32_t)(DebugMonitor_IRQn + 16);
-    ExceptionStack* pExceptionStack = getExceptionStack(excReturn, psp, msp);
-    uint32_t exceptionNumber = pExceptionStack->xpsr & 0xFF;
-    if (isDebugThreadActive() && exceptionNumber == debugMonExceptionNumber)
-    {
-        // Encountered memory fault when GDB attempted to access an invalid address.
-        // Set flag to let MRI know that its access failed and advance past the faulting instruction
-        // if it was a precise bus fault so that it doesn't just occur again on return.
-        setFaultDetectedFlag();
-        if (!isImpreciseBusFault())
-        {
-            advancePCToNextInstruction(pExceptionStack);
-        }
-        clearFaultStatusBits();
-        return 0;
-    }
+    g_crashState = CRASH_STATE_DUMPING;
+    resetMriFlags();
 
-    if (isExceptionPriorityLowEnoughToDebug(exceptionNumber))
-    {
-        // Pend DebugMon interrupt to debug the fault.
-        recordAndClearFaultStatusBits();
-        setPendedFromFaultBit();
-        setMonitorPending();
-        return 0;
-    }
-    else
-    {
-        // Exception occurred in code too high priority to debug so start a crash dump.
-        g_crashState = CRASH_STATE_DUMPING;
-        resetMriFlags();
-        return -1;
-    }
-}
-
-static ExceptionStack* getExceptionStack(uint32_t excReturn, uint32_t psp, uint32_t msp)
-{
-    uint32_t sp;
-    if ((excReturn & 0xF) == EXC_RETURN_THREADMODE_PROCESSSTACK)
-    {
-        sp = psp;
-    }
-    else
-    {
-        sp = msp;
-    }
-    return (ExceptionStack*)sp;
-}
-
-static bool isDebugThreadActive()
-{
-    return (mriCortexMFlags & CORTEXM_FLAGS_ACTIVE_DEBUG);
-}
-
-static void setFaultDetectedFlag()
-{
-    mriCortexMFlags |= CORTEXM_FLAGS_FAULT_DURING_DEBUG;
-}
-
-static bool isImpreciseBusFault()
-{
-    return SCB->CFSR & SCB_CFSR_IMPRECISERR_Msk;
-}
-
-static void advancePCToNextInstruction(ExceptionStack* pExceptionStack)
-{
-    uint32_t* pPC = &pExceptionStack->pc;
-    uint16_t  currentInstruction = *(uint16_t*)*pPC;
-    if (isInstruction32Bit(currentInstruction))
-    {
-        *pPC += sizeof(uint32_t);
-    }
-    else
-    {
-        *pPC += sizeof(uint16_t);
-    }
-}
-
-static int isInstruction32Bit(uint16_t firstWordOfInstruction)
-{
-    uint16_t maskedOffUpper5BitsOfWord = firstWordOfInstruction & 0xF800;
-
-    /* 32-bit instructions start with 0b11101, 0b11110, 0b11111 according to page A5-152 of the
-       ARMv7-M Architecture Manual. */
-    return  (maskedOffUpper5BitsOfWord == 0xE800 ||
-             maskedOffUpper5BitsOfWord == 0xF000 ||
-             maskedOffUpper5BitsOfWord == 0xF800);
-}
-
-static void clearFaultStatusBits()
-{
-    /* Clear fault status bits by writing 1s to bits that are already set. */
-    SCB->DFSR = SCB->DFSR;
-    SCB->HFSR = SCB->HFSR;
-    SCB->CFSR = SCB->CFSR;
-}
-
-static bool isExceptionPriorityLowEnoughToDebug(uint32_t exceptionNumber)
-{
-    if (exceptionNumber == 0)
-    {
-        // Can always debug main thread as it has lowest priority.
-        return true;
-    }
-    else if (exceptionNumber < 16)
-    {
-        // These are system exceptions that can't be debugged.
-        return false;
-    }
-    else
-    {
-        // Look up priority level in NVIC to see if it is low enough to be debugged.
-        return getInterruptPriority(exceptionNumber) > MRIBLUE_PRIORITY;
-    }
-}
-
-static uint32_t getInterruptPriority(uint32_t exceptionNumber)
-{
-    return NVIC->IP[exceptionNumber - 16] >> mriCortexMState.subPriorityBitCount;
-}
-
-static void recordAndClearFaultStatusBits(void)
-{
-    mriCortexMState.exceptionNumber = getCurrentlyExecutingExceptionNumber();
-    mriCortexMState.dfsr = SCB->DFSR;
-    mriCortexMState.hfsr = SCB->HFSR;
-    mriCortexMState.cfsr = SCB->CFSR;
-    mriCortexMState.mmfar = SCB->MMFAR;
-    mriCortexMState.bfar = SCB->BFAR;
-
-    // Clear fault status bits by writing 1s to bits that are already set.
-    SCB->DFSR = mriCortexMState.dfsr;
-    SCB->HFSR = mriCortexMState.hfsr;
-    SCB->CFSR = mriCortexMState.cfsr;
-}
-
-static void setPendedFromFaultBit(void)
-{
-    mriCortexMFlags |= CORTEXM_FLAGS_PEND_FROM_FAULT;
+    // Return and let fault handler launch MRI's main exception handler. Once this has setup the context properly, we
+    // will stop in mriPlatform_EnteringDebugger() to generate the crash dump in FLASH and reboot the uC.
 }
 
 static void resetMriFlags(void)

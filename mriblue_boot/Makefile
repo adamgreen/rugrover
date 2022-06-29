@@ -46,7 +46,6 @@ SRC_FILES += \
   $(SDK_ROOT)/components/drivers_nrf/hal/nrf_nvmc.c \
   $(PROJ_DIR)/main.c \
   $(PROJ_DIR)/CircularQueue.c \
-  $(PROJ_DIR)/mriblue_asm.S \
   $(PROJ_DIR)/gcc_startup_nrf52.S \
 
 # Include folders common to all targets
