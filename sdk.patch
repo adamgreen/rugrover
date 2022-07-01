@@ -218,8 +218,23 @@ diff -Naurb nrfSDK2/components/softdevice/s130/headers/nrf_svc.h nrfSDK/componen
  #endif
 diff -Naurb nrfSDK2/components/toolchain/gcc/Makefile.common nrfSDK/components/toolchain/gcc/Makefile.common
 --- nrfSDK2/components/toolchain/gcc/Makefile.common	2017-05-05 13:10:30.000000000 -0700
-+++ nrfSDK/components/toolchain/gcc/Makefile.common	2022-04-27 00:50:11.000000000 -0700
-@@ -154,6 +154,7 @@
++++ nrfSDK/components/toolchain/gcc/Makefile.common	2022-06-29 17:54:33.000000000 -0700
+@@ -108,7 +108,8 @@
+ define define_target
+ $(eval OUTPUT_FILE := $(OUTPUT_DIRECTORY)/$(strip $(1))) \
+ $(eval $(1): $(OUTPUT_FILE).out $(OUTPUT_FILE).hex $(OUTPUT_FILE).bin) \
+-$(call prepare_build, $(1), $(OUTPUT_FILE).out)
++$(call prepare_build, $(1), $(OUTPUT_FILE).out) \
++$(eval $(OUTPUT_FILE).out: $$(LIB_FILES))
+ endef
+ 
+ # $1 target name
+@@ -150,10 +151,11 @@
+   "$(MAKE)" -s --no-print-directory -f $(TEMPLATE_PATH)/file_list.mk
+ # Link object files
+ %.out:
+-	$(eval FILE_LIST := $^ $(LIB_FILES))
++	$(eval FILE_LIST := $^)
  	$(NO_ECHO)$(DUMP_FILE_LIST) > $(@:.out=.in)
  	@echo Linking target: $@
  	$(NO_ECHO)$(CC) -Wl,-Map=$(@:.out=.map) $(LDFLAGS) @$(@:.out=.in) -lm -o $@
