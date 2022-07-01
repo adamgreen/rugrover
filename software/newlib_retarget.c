@@ -12,40 +12,12 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 */
-#include <errno.h>
 #include <stdint.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <core/mri.h>
+#include <core/fileio.h>
 
-
-/* Turn off the errno macro and use actual external global variable instead. */
-#undef errno
-extern int errno;
-
-
-/* Structure used by GDB to communicate the stats for a file on the host. Each 32-bit word is returned in big endian
-   format.
-*/
-typedef struct
-{
-    uint32_t    device;
-    uint32_t    inode;
-    uint32_t    mode;
-    uint32_t    numberOfLinks;
-    uint32_t    userId;
-    uint32_t    groupId;
-    uint32_t    deviceType;
-    uint32_t    totalSizeUpperWord;
-    uint32_t    totalSizeLowerWord;
-    uint32_t    blockSizeUpperWord;
-    uint32_t    blockSizeLowerWord;
-    uint32_t    blockCountUpperWord;
-    uint32_t    blockCountLowerWord;
-    uint32_t    lastAccessTime;
-    uint32_t    lastModifiedTime;
-    uint32_t    lastChangeTime;
-} GdbStats;
 
 /* Flag set to flag that MRI hooks should be disabled when writing to stdout. */
 volatile int g_mriDisableHooks = 0;

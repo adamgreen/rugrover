@@ -23,6 +23,8 @@ static void gpioteHandler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action
 static void enteringDebuggerHook(void* pvContext);
 static void leavingDebuggerHook(void* pvContext);
 
+volatile uint32_t g_count = 0;
+
 int main(void)
 {
     // Exercise the semihosting support a bit.
@@ -85,11 +87,17 @@ int main(void)
     {
         //*(volatile uint32_t*)0xFFFFFFFF; // = 0xbaadf00d;
 
+        //__disable_irq();
+        //__set_BASEPRI(0x06<<(8-__NVIC_PRIO_BITS));
+            g_count++;
+        //__enable_irq();
+        //__set_BASEPRI(0x00);
+
         for (int i = 0; i < 2; i++)
         {
             printf("Toggle\r\n");
             nrf_gpio_pin_toggle(leds[i]);
-            nrf_delay_ms(500);
+            //nrf_delay_ms(500);
         }
     }
 }

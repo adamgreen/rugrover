@@ -38,8 +38,10 @@ SRC_FILES += \
   $(SDK_ROOT)/components/libraries/simple_timer/app_simple_timer.c \
   $(PROJ_DIR)/main.c \
   $(PROJ_DIR)/gcc_startup_nrf52.S \
-  $(PROJ_DIR)/newlib_stubs.S \
   $(PROJ_DIR)/newlib_retarget.c \
+
+# Add in MRI debug monitor to get the newlib stubs contained within.
+LIB_FILES += $(MRI_PATH)/lib/armv7-m/libmri_nrf52dk_fpu_hard.a
 
 # Include folders common to all targets
 INC_FOLDERS += \
