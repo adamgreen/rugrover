@@ -262,6 +262,9 @@ static uint32_t g_bootFlags = BOOT_FLAGS_DEFAULT_VALUE;
 // A CTRL+C has been detected while MRI debug monitor is actively debugging.
 static bool g_controlC = false;
 
+// Single step requested while debugging a crash dump.
+static bool g_singleStepRequested = false;
+
 
 
 // Forward Function Declarations
@@ -298,6 +301,7 @@ static uint32_t findLatestBootFlags(void);
 static void findLatestBootFlagsLocations(uint32_t** ppLastUsed, uint32_t** ppNextAvail);
 static bool isValidCrashDumpInFlash(void);
 static void debugCrashDump(void);
+static void sendAckToGdbIncaseCrashOccurredBeforeSendingIt(void);
 static void transferControlToApplicationToDebug(void);
 static int enteredResetHandlerCallback(void* pvContext);
 static void copyContextFromFlash(ContextSection* pContextSection);
@@ -1172,16 +1176,24 @@ static void debugCrashDump(void)
         .count = sizeof(registers)/sizeof(registers[0])
     };
 
+    sendAckToGdbIncaseCrashOccurredBeforeSendingIt();
     g_crashState = CRASH_STATE_DEBUGGING;
     copyContextFromFlash(&contextSection);
     while (true)
     {
         mriDebugException(&mriCortexMState.context);
-        WriteStringToGdbConsole("\r\n"
-                                "Can't continue execution.\r\n"
-                                "You are debugging a crash dump.\r\n"
-                                "Send \"monitor reset\" command to clear crash dump.\r\n");
+        if (!mriCore_WasResetOnNextContinueRequested()) {
+            WriteStringToGdbConsole("\r\n"
+                                    "Can't continue execution.\r\n"
+                                    "You are debugging a crash dump.\r\n"
+                                    "Send \"monitor reset\" command to clear crash dump.\r\n");
+        }
     }
+}
+
+static void sendAckToGdbIncaseCrashOccurredBeforeSendingIt(void)
+{
+    mriPlatform_CommSendChar('+');
 }
 
 static void transferControlToApplicationToDebug(void)
@@ -1865,11 +1877,6 @@ static void copyContextFromFlash(ContextSection* pContextSection)
 static void restoreReasonCode(void)
 {
     CrashDumpContext* pDumpContext = (CrashDumpContext*)CRASH_DUMP_CONTEXT;
-    while (pDumpContext->magic != CRASH_DUMP_CONTEXT_MAGIC)
-    {
-        // This shouldn't happen.
-    }
-
     mriCortexMState.reason = pDumpContext->reason;
 }
 
@@ -1958,18 +1965,71 @@ static const void* ramAddressToLocationInDump(const void* pvRam)
 
 
 // *********************************************************************************************************************
-//  Wrap of the mriPlatform* functions which should be ignored when debugging a crash dump.
+//  Wrap of routines which are customized to handle "monitor reset" for certain type of crash dumps.
+//  When you are debugging a crash dump caused by a breakpoint in high priority code, GDB will want to single step over
+//  the instruction before issuing the continue which will complete the reset process.
 // *********************************************************************************************************************
+static void simulateSingleStep();
+static void updateFaultStatusRegisterToSimulateSuccessfulSingleStep();
+
 void __wrap_mriPlatform_EnableSingleStep(void)
 {
     void      __real_mriPlatform_EnableSingleStep(void);
 
-    if (g_crashState != CRASH_STATE_DEBUGGING)
+    if (g_crashState == CRASH_STATE_DEBUGGING)
+    {
+        // Want to ignore single step requests when debugging a crash dump except for the one that GDB might issue as
+        // part of a "continue" command from the user when the PC is pointing to a breakpoint.
+        if (mriCore_WasResetOnNextContinueRequested())
+        {
+            // Flag that a single step request has been issued when a "monitor reset" command has already been given.
+            g_singleStepRequested = true;
+        }
+    }
+    else
     {
         __real_mriPlatform_EnableSingleStep();
     }
 }
 
+void __wrap_mriPlatform_ResetDevice(void)
+{
+    void __real_mriPlatform_ResetDevice(void);
+
+    if (g_crashState == CRASH_STATE_DEBUGGING && mriCore_WasResetOnNextContinueRequested() && g_singleStepRequested)
+    {
+        // Instead of resetting the device right now, just simulate the single step as GDB expects instead.
+        simulateSingleStep();
+        g_singleStepRequested = false;
+    }
+    else
+    {
+        __real_mriPlatform_ResetDevice();
+    }
+}
+
+static void simulateSingleStep()
+{
+    Platform_AdvanceProgramCounterToNextInstruction();
+    updateFaultStatusRegisterToSimulateSuccessfulSingleStep();
+}
+
+static void updateFaultStatusRegisterToSimulateSuccessfulSingleStep()
+{
+    static const uint32_t debugMonExceptionNumber = 12;
+
+    mriCortexMState.exceptionNumber = debugMonExceptionNumber;
+    mriCortexMState.hfsr = 0;
+    mriCortexMState.dfsr = SCB_DFSR_HALTED;
+    mriCortexMState.cfsr = 0;
+}
+
+
+
+
+// *********************************************************************************************************************
+//  Wrap of the mriPlatform* functions which should be ignored when debugging a crash dump.
+// *********************************************************************************************************************
 void  __wrap_mriPlatform_SetHardwareBreakpointOfGdbKind(uint32_t address, uint32_t kind)
 {
     void  __real_mriPlatform_SetHardwareBreakpointOfGdbKind(uint32_t address, uint32_t kind);

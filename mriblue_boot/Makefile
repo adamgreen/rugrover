@@ -252,6 +252,7 @@ LDFLAGS += -Wl,--wrap=mriPlatform_ClearHardwareBreakpoint
 LDFLAGS += -Wl,--wrap=mriPlatform_SetHardwareWatchpoint
 LDFLAGS += -Wl,--wrap=mriPlatform_ClearHardwareWatchpoint
 LDFLAGS += -Wl,--wrap=mriSemihost_HandleNewlibSemihostRequest
+LDFLAGS += -Wl,--wrap=mriPlatform_ResetDevice
 
 .PHONY: $(TARGETS) default all clean help flash flash_softdevice sdk mri
 
