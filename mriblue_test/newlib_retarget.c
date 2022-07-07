@@ -12,12 +12,17 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 */
+#include <errno.h>
 #include <stdint.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <core/mri.h>
 #include <core/fileio.h>
 
+
+/* Place errno in the global variable as that is where functions like _open_r() which call _open() expect it to be. */
+#undef errno
+extern int errno;
 
 /* Flag set to flag that MRI hooks should be disabled when writing to stdout. */
 volatile int g_mriDisableHooks = 0;
@@ -29,17 +34,32 @@ static uint32_t extractWordFromBigEndianWord(const void* pBigEndianValueToExtrac
 /* File system related syscalls. */
 int _open(const char *pFilename, int flags, int mode)
 {
-    return mriNewLib_SemihostOpen(pFilename, flags, mode);
+    int result = mriNewLib_SemihostOpen(pFilename, flags, mode);
+    if (result < 0)
+    {
+        errno = mriNewlib_SemihostGetErrNo();
+    }
+    return result;
 }
 
 int rename(const char *pOldFilename, const char *pNewFilename)
 {
-    return mriNewLib_SemihostRename(pOldFilename, pNewFilename);
+    int result = mriNewLib_SemihostRename(pOldFilename, pNewFilename);
+    if (result < 0)
+    {
+        errno = mriNewlib_SemihostGetErrNo();
+    }
+    return result;
 }
 
 int _unlink(const char *pFilename)
 {
-    return mriNewLib_SemihostUnlink(pFilename);
+    int result = mriNewLib_SemihostUnlink(pFilename);
+    if (result < 0)
+    {
+        errno = mriNewlib_SemihostGetErrNo();
+    }
+    return result;
 }
 
 int _fstat(int file, struct stat *pStat)
@@ -48,6 +68,10 @@ int _fstat(int file, struct stat *pStat)
 
     memset(&gdbStats, 0, sizeof(gdbStats));
     int result = mriNewlib_SemihostFStat(file, &gdbStats);
+    if (result < 0)
+    {
+        errno = mriNewlib_SemihostGetErrNo();
+    }
 
     pStat->st_dev = extractWordFromBigEndianWord(&gdbStats.device);
     pStat->st_ino = extractWordFromBigEndianWord(&gdbStats.inode);
@@ -72,6 +96,10 @@ int _stat(const char *pFilename, struct stat *pStat)
 
     memset(&gdbStats, 0, sizeof(gdbStats));
     int result = mriNewLib_SemihostStat(pFilename, &gdbStats);
+    if (result < 0)
+    {
+        errno = mriNewlib_SemihostGetErrNo();
+    }
 
     pStat->st_dev = extractWordFromBigEndianWord(&gdbStats.device);
     pStat->st_ino = extractWordFromBigEndianWord(&gdbStats.inode);
@@ -100,7 +128,12 @@ static uint32_t extractWordFromBigEndianWord(const void* pBigEndianValueToExtrac
 /* File handle related syscalls. */
 int _read(int file, char *ptr, int len)
 {
-    return mriNewlib_SemihostRead(file, ptr, len);
+    int result =  mriNewlib_SemihostRead(file, ptr, len);
+    if (result < 0)
+    {
+        errno = mriNewlib_SemihostGetErrNo();
+    }
+    return result;
 }
 
 int _write(int file, char *ptr, int len)
@@ -113,6 +146,10 @@ int _write(int file, char *ptr, int len)
     }
 
     int result = mriNewlib_SemihostWrite(file, ptr, len);
+    if (result < 0)
+    {
+        errno = mriNewlib_SemihostGetErrNo();
+    }
 
     if (file == STDOUT_FILE_NO)
     {
@@ -130,10 +167,20 @@ int _isatty(int file)
 
 int _lseek(int file, int ptr, int dir)
 {
-    return mriNewlib_SemihostLSeek(file, ptr, dir);
+    int result =  mriNewlib_SemihostLSeek(file, ptr, dir);
+    if (result < 0)
+    {
+        errno = mriNewlib_SemihostGetErrNo();
+    }
+    return result;
 }
 
 int _close(int file)
 {
-    return mriNewlib_SemihostClose(file);
+    int result =  mriNewlib_SemihostClose(file);
+    if (result < 0)
+    {
+        errno = mriNewlib_SemihostGetErrNo();
+    }
+    return result;
 }

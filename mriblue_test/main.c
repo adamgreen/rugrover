@@ -12,6 +12,7 @@
 */
 /* Beginnings of firmware for RugRover robot. */
 #include <stdio.h>
+#include <errno.h>
 #include <app_error.h>
 #include <nrf_delay.h>
 #include <nrf_gpio.h>
@@ -30,7 +31,14 @@ int main(void)
     // Exercise the semihosting support a bit.
     printf("Excercising Semihosting Support...\r\n");
 
-    FILE* pFile = fopen("dmri", "r");
+    FILE* pFile = fopen("non-existent.file", "r");
+    if (pFile || errno != ENOENT)
+    {
+        fprintf(stderr, "error: Didn't fail to open non-existent.file as expected\r\n");
+        return -1;
+    }
+
+    pFile = fopen("dmri", "r");
     if (!pFile)
     {
         fprintf(stderr, "error: Failed to open dmri script\r\n");
@@ -97,7 +105,7 @@ int main(void)
         {
             printf("Toggle\r\n");
             nrf_gpio_pin_toggle(leds[i]);
-            //nrf_delay_ms(500);
+            nrf_delay_ms(500);
         }
     }
 }
