@@ -1649,9 +1649,14 @@ static uint32_t copyBytes(void* pvDest, size_t destSize, Buffer* pBuffer)
 */
 static uint32_t  handleFlashDoneCommand(Buffer* pBuffer)
 {
+    if (g_crashState == CRASH_STATE_DEBUGGING)
+    {
+        // Now that new code is loaded into FLASH, clear out the crash dump since it is now out of date.
+        flagCrashDumpAsInvalid();
+    }
+
     // Want to reset on next continue to place microcontroller in clean state for running new code now in FLASH.
     RequestResetOnNextContinue();
-
     PrepareStringResponse("OK");
     return HANDLER_RETURN_HANDLED;
 }
