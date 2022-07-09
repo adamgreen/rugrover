@@ -6,10 +6,10 @@ SDK_ROOT := ../nrfSDK
 NRF_TOOL_PATH := ../nrfTools
 PROJ_DIR := .
 MRI_PATH := ../mri
-MRIBLUE_PATH := ../mriblue_boot
+MRIBLUE_PATH := ../mriblue_boot/shared
 
 $(OUTPUT_DIRECTORY)/RugRover.out: \
-  LINKER_SCRIPT  := nrf52.ld
+  LINKER_SCRIPT  := $(MRIBLUE_PATH)/nrf52.ld
 
 # Source files common to all targets
 SRC_FILES += \
@@ -40,9 +40,9 @@ SRC_FILES += \
   $(SDK_ROOT)/components/drivers_nrf/pwm/nrf_drv_pwm.c \
   $(SDK_ROOT)/components/drivers_nrf/saadc/nrf_drv_saadc.c \
   $(SDK_ROOT)/components/drivers_nrf/hal/nrf_saadc.c \
+  $(MRIBLUE_PATH)/gcc_startup_nrf52.S \
+  $(MRIBLUE_PATH)/newlib_retarget.c \
   $(PROJ_DIR)/main.cpp \
-  $(PROJ_DIR)/gcc_startup_nrf52.S \
-  $(PROJ_DIR)/newlib_retarget.c \
   $(PROJ_DIR)/Adafruit-GFX-Library/Adafruit_GFX.cpp \
   $(PROJ_DIR)/OLED_SH1106/OLED_SH1106.cpp \
   $(PROJ_DIR)/QuadratureDecoder/QuadratureDecoderHardware.cpp \

@@ -42,7 +42,7 @@
 #include <core/core.h>
 #include <core/gdb_console.h>
 #include <core/signal.h>
-#include "newlib_stubs.h"
+#include "shared/newlib_stubs.h"
 #include "app.h"
 #include "CircularQueue.h"
 

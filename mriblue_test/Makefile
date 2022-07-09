@@ -6,10 +6,10 @@ SDK_ROOT := ../nrfSDK
 NRF_TOOL_PATH := ../nrfTools
 PROJ_DIR := .
 MRI_PATH := ../mri
-MRIBLUE_PATH := ../mriblue_boot
+MRIBLUE_PATH := ../mriblue_boot/shared
 
 $(OUTPUT_DIRECTORY)/Test.out: \
-  LINKER_SCRIPT  := nrf52.ld
+  LINKER_SCRIPT  := $(MRIBLUE_PATH)/nrf52.ld
 
 # Source files common to all targets
 SRC_FILES += \
@@ -36,9 +36,9 @@ SRC_FILES += \
   $(SDK_ROOT)/components/softdevice/common/softdevice_handler/softdevice_handler.c \
   $(SDK_ROOT)/components/drivers_nrf/timer/nrf_drv_timer.c \
   $(SDK_ROOT)/components/libraries/simple_timer/app_simple_timer.c \
+  $(MRIBLUE_PATH)/gcc_startup_nrf52.S \
+  $(MRIBLUE_PATH)/newlib_retarget.c \
   $(PROJ_DIR)/main.c \
-  $(PROJ_DIR)/gcc_startup_nrf52.S \
-  $(PROJ_DIR)/newlib_retarget.c \
 
 # Add in MRI debug monitor to get the newlib stubs contained within.
 LIB_FILES += $(MRI_PATH)/lib/armv7-m/libmri_nrf52dk_fpu_hard.a
