@@ -13,6 +13,17 @@ $(OUTPUT_DIRECTORY)/RugRover.out: \
 
 # Source files common to all targets
 SRC_FILES += \
+  $(MRIBLUE_PATH)/gcc_startup_nrf52.S \
+  $(MRIBLUE_PATH)/newlib_retarget.c \
+  $(PROJ_DIR)/main.cpp \
+  $(PROJ_DIR)/Adafruit-GFX-Library/Adafruit_GFX.cpp \
+  $(PROJ_DIR)/OLED_SH1106/OLED_SH1106.cpp \
+  $(PROJ_DIR)/QuadratureDecoder/QuadratureDecoderHardware.cpp \
+  $(PROJ_DIR)/QuadratureDecoder/QuadratureDecoderSoftware.cpp \
+  $(PROJ_DIR)/DualTB9051FTGDrivers/DualTB9051FTGDrivers.cpp \
+  $(PROJ_DIR)/SAADCScanner/SAADCScanner.cpp \
+  $(PROJ_DIR)/GlobalTimer/GlobalTimer.cpp \
+  $(PROJ_DIR)/DifferentialDrive/DifferentialDrive.cpp \
   $(SDK_ROOT)/components/libraries/log/src/nrf_log_backend_serial.c \
   $(SDK_ROOT)/components/libraries/log/src/nrf_log_frontend.c \
   $(SDK_ROOT)/components/libraries/util/app_error.c \
@@ -40,15 +51,6 @@ SRC_FILES += \
   $(SDK_ROOT)/components/drivers_nrf/pwm/nrf_drv_pwm.c \
   $(SDK_ROOT)/components/drivers_nrf/saadc/nrf_drv_saadc.c \
   $(SDK_ROOT)/components/drivers_nrf/hal/nrf_saadc.c \
-  $(MRIBLUE_PATH)/gcc_startup_nrf52.S \
-  $(MRIBLUE_PATH)/newlib_retarget.c \
-  $(PROJ_DIR)/main.cpp \
-  $(PROJ_DIR)/Adafruit-GFX-Library/Adafruit_GFX.cpp \
-  $(PROJ_DIR)/OLED_SH1106/OLED_SH1106.cpp \
-  $(PROJ_DIR)/QuadratureDecoder/QuadratureDecoderHardware.cpp \
-  $(PROJ_DIR)/QuadratureDecoder/QuadratureDecoderSoftware.cpp \
-  $(PROJ_DIR)/DualTB9051FTGDrivers/DualTB9051FTGDrivers.cpp \
-  $(PROJ_DIR)/SAADCScanner/SAADCScanner.cpp \
 
 # Add in MRI debug monitor to get the newlib stubs contained within.
 LIB_FILES += $(MRI_PATH)/lib/armv7-m/libmri_nrf52dk_fpu_hard.a

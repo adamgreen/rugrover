@@ -96,12 +96,14 @@ public:
                     int16_t w, int16_t h),
       drawChar(int16_t x, int16_t y, unsigned char c, uint16_t color,
                uint16_t bg, uint8_t size),
-      drawChar(int16_t x, int16_t y, unsigned char c, uint16_t color,
-               uint16_t bg, uint8_t size_x, uint8_t size_y),
       getTextBounds(const char *string, int16_t x, int16_t y, int16_t *x1,
                     int16_t *y1, uint16_t *w, uint16_t *h),
       setTextSize(uint8_t s), setTextSize(uint8_t sx, uint8_t sy),
       setFont(const GFXfont *f = NULL);
+
+      // I made this virtual so that I could optimize it for RugRover project.
+      virtual void drawChar(int16_t x, int16_t y, unsigned char c, uint16_t color,
+                            uint16_t bg, uint8_t size_x, uint8_t size_y);
 
   /**********************************************************************/
   /*!

@@ -17,7 +17,6 @@
 #define DUAL_TB9051FTG_DRIVERS_
 
 #include <nrf_drv_pwm.h>
-#include <nrf_atomic.h>
 #include "SAADCScanner/SAADCScanner.h"
 
 class DualTB9051FTGDrivers
@@ -25,8 +24,8 @@ class DualTB9051FTGDrivers
     public:
         struct CurrentReadings
         {
-            uint32_t leftCurrent_mA;
-            uint32_t rightCurrent_mA;
+            int32_t leftCurrent_mA;
+            int32_t rightCurrent_mA;
         };
 
         DualTB9051FTGDrivers(uint8_t leftEnablePin, uint8_t leftPwm1Pin, uint8_t leftPwm2Pin,
@@ -114,7 +113,7 @@ class DualTB9051FTGDrivers
 
                 bool hasEncounteredFault();
                 bool hasDetectedCurrentOverload();
-                uint32_t getCurrentReading();
+                int32_t getCurrentReading();
 
             protected:
                 virtual void notifyLimitExceeded(bool lowLimitExceeded, bool highLimitExceeded);

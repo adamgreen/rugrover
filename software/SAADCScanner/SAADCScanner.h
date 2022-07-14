@@ -16,7 +16,16 @@
 #define SAADC_SCANNER_H_
 
 #include <app_util_platform.h>
-#include <nrf_drv_saadc.h>
+#include <nrf_saadc.h>
+
+
+// Pass into addChannel() method for lowLimit and/or highLimit parameter to disable this feature.
+#define SAADC_LOWER_LIMIT_DISABLED 0x8000
+#define SAADC_UPPER_LIMIT_DISABLED 0x7FFF
+
+
+// The SAADC ISR will be declared as a friend of this class so that it can access some of the protected fields.
+extern "C" void SAADC_IRQHandler(void);
 
 
 class ISAADCScannerNotification
@@ -72,7 +81,8 @@ class SAADCScanner
                 }
 
             protected:
-                friend SAADCScanner;
+                friend class SAADCScanner;
+                friend void SAADC_IRQHandler(void);
 
                 Channel();
 
@@ -112,16 +122,18 @@ class SAADCScanner
                 }
 
                 ISAADCScannerNotification* m_pNotification;
-                size_t m_index;
+                size_t           m_index;
                 volatile int32_t m_sum;
                 volatile int32_t m_count;
                 volatile int16_t m_latest;
                 volatile int16_t m_min;
                 volatile int16_t m_max;
-                uint8_t m_irqPriority;
-                uint8_t m_origPriority;
-                volatile bool m_lowLimitExceeded;
-                volatile bool m_highLimitExceeded;
+                int16_t          m_lowLimit;
+                int16_t          m_highLimit;
+                uint8_t          m_irqPriority;
+                uint8_t          m_origPriority;
+                volatile bool    m_lowLimitExceeded;
+                volatile bool    m_highLimitExceeded;
         };
 
         Channel* addChannel(uint8_t pin,
@@ -129,17 +141,16 @@ class SAADCScanner
                             nrf_saadc_gain_t gain = NRF_SAADC_GAIN1_4,
                             nrf_saadc_reference_t reference = NRF_SAADC_REFERENCE_VDD4,
                             nrf_saadc_acqtime_t acquisitionTime = NRF_SAADC_ACQTIME_3US,
-                            int16_t lowLimit = NRF_DRV_SAADC_LIMITL_DISABLED,
-                            int16_t highLimit = NRF_DRV_SAADC_LIMITH_DISABLED,
+                            int16_t lowLimit = SAADC_LOWER_LIMIT_DISABLED,
+                            int16_t highLimit = SAADC_UPPER_LIMIT_DISABLED,
                             ISAADCScannerNotification* pNotification = NULL);
 
-        bool startScanning();
+        void startScanning();
 
     protected:
-        Channel* findFreeChannel();
-        static void eventHandler(nrf_drv_saadc_evt_t const * p_event);
+        friend void SAADC_IRQHandler(void);
 
-        static SAADCScanner*    m_pThis;
+        Channel* findFreeChannel();
 
         size_t                  m_usedChannelCount;
         nrf_saadc_value_t       m_buffer[NRF_SAADC_CHANNEL_COUNT];

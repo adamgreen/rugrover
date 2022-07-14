@@ -130,11 +130,7 @@ bool DualTB9051FTGDrivers::init()
     {
         return false;
     }
-    adcResult = m_pADC->startScanning();
-    if (!adcResult)
-    {
-        return false;
-    }
+    m_pADC->startScanning();
 
     nrf_pwm_sequence_t pwmSequence0 =
     {
@@ -200,7 +196,7 @@ bool DualTB9051FTGDrivers::MotorDriver::initAdcToMeasureMotorCurrents(SAADCScann
                                      NRF_SAADC_GAIN1_4,
                                      NRF_SAADC_REFERENCE_VDD4,
                                      NRF_SAADC_ACQTIME_3US,
-                                     NRF_DRV_SAADC_LIMITL_DISABLED,
+                                     SAADC_LOWER_LIMIT_DISABLED,
                                      mA_TO_ADC(m_maxCurrent_mA),
                                      this);
     if (m_pAdcChannel == NULL)
@@ -270,14 +266,14 @@ bool DualTB9051FTGDrivers::MotorDriver::hasDetectedCurrentOverload()
     return m_currentOverloadDetected;
 }
 
-uint32_t DualTB9051FTGDrivers::MotorDriver::getCurrentReading()
+int32_t DualTB9051FTGDrivers::MotorDriver::getCurrentReading()
 {
     if (m_pAdcChannel == NULL)
     {
         return 0;
     }
     SAADCScanner::Channel::Reading reading = m_pAdcChannel->read();
-    return ADC_TO_mA((uint32_t)reading.max);
+    return ADC_TO_mA((int32_t)reading.max);
 }
 
 void DualTB9051FTGDrivers::MotorDriver::notifyLimitExceeded(bool lowLimitExceeded, bool highLimitExceeded)

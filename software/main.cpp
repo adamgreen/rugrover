@@ -42,10 +42,7 @@
 #include <nrf_gpio.h>
 #include <core/mri.h>
 #include "OLED_SH1106/OLED_SH1106.h"
-#include "QuadratureDecoder/QuadratureDecoderHardware.h"
-#include "QuadratureDecoder/QuadratureDecoderSoftware.h"
-#include "DualTB9051FTGDrivers/DualTB9051FTGDrivers.h"
-#include "SAADCScanner/SAADCScanner.h"
+#include "DifferentialDrive/DifferentialDrive.h"
 
 
 
@@ -85,11 +82,22 @@
 #define LMOTOR_REVERSE      true
 #define RMOTOR_REVERSE      false
 
+// The number of encoder ticks per revolution of the wheel.
+#define MOTOR_TICKS_PER_REV 1250
+
 // The frequency to be used for the motor PWM signal.
 #define MOTOR_FREQUENCY     20000
 
 // Don't allow motor current to go over 1.5A.
 #define MOTOR_MAX_CURRENT_mA    1500
+
+// PID contants used for the motors.
+#define MOTOR_PID_Kc            1.0f
+#define MOTOR_PID_Ti            0.0f
+#define MOTOR_PID_Td            0.0f
+
+// Don't allow the PID controller to command the motor power past this percentage value (0 - 100).
+#define MOTOR_PID_MAX_PERCENT   80
 
 
 // Dimensions of the 1.3" OLED screen.
@@ -102,6 +110,7 @@
 
 
 
+
 // SPIM instance used for driving the OLED.
 static const nrf_drv_spi_t  g_spiOLED = NRF_DRV_SPI_INSTANCE(OLED_SPI_INSTANCE);
 
@@ -109,23 +118,22 @@ static const nrf_drv_spi_t  g_spiOLED = NRF_DRV_SPI_INSTANCE(OLED_SPI_INSTANCE);
 static OLED_SH1106          g_OLED(OLED_WIDTH, OLED_HEIGHT, OLED_COLUMN_OFFSET, OLED_ROW_OFFSET,
                                    &g_spiOLED, OLED_SCK_PIN, OLED_MOSI_PIN, OLED_DC_PIN);
 
-// Quadrature encoders.
-QuadratureDecoderHardware   g_leftEncoder(LMOTOR_ENCODER_A_PIN, LMOTOR_ENCODER_B_PIN);
-QuadratureDecoderSoftware   g_rightEncoder(RMOTOR_ENCODER_A_PIN, RMOTOR_ENCODER_B_PIN);
-
 // Analog to digitial converter object.
-SAADCScanner                g_adc(NRF_SAADC_RESOLUTION_12BIT, _PRIO_APP_LOWEST);
+static SAADCScanner         g_adc(NRF_SAADC_RESOLUTION_12BIT, _PRIO_APP_LOWEST);
 
 // PWM peripheral instance used for the motor drivers.
-nrf_drv_pwm_t               g_PWM = NRF_DRV_PWM_INSTANCE(0);
+static nrf_drv_pwm_t        g_PWM = NRF_DRV_PWM_INSTANCE(0);
 
-// Motor drivers.
-DualTB9051FTGDrivers        g_motors(LMOTOR_EN_PIN, LMOTOR_PWM1_PIN, LMOTOR_PWM2_PIN,
+// Closed loop PID control of the robot's two motors.
+static DifferentialDrive    g_drive(LMOTOR_EN_PIN, LMOTOR_PWM1_PIN, LMOTOR_PWM2_PIN,
                                      LMOTOR_DIAG_PIN, LMOTOR_OCM_PIN, LMOTOR_REVERSE,
+                                     LMOTOR_ENCODER_A_PIN, LMOTOR_ENCODER_B_PIN,
                                      RMOTOR_EN_PIN, RMOTOR_PWM1_PIN, RMOTOR_PWM2_PIN,
                                      RMOTOR_DIAG_PIN, RMOTOR_OCM_PIN, RMOTOR_REVERSE,
+                                     RMOTOR_ENCODER_A_PIN, RMOTOR_ENCODER_B_PIN,
+                                     MOTOR_PID_Kc, MOTOR_PID_Ti, MOTOR_PID_Td, MOTOR_PID_MAX_PERCENT,
                                      &g_adc,
-                                     &g_PWM, MOTOR_FREQUENCY, MOTOR_MAX_CURRENT_mA,_PRIO_APP_LOWEST);
+                                     &g_PWM, MOTOR_FREQUENCY, MOTOR_MAX_CURRENT_mA);
 
 
 
@@ -150,6 +158,7 @@ int main(void)
     g_OLED.init();
     g_OLED.setRotation(2);
     g_OLED.setBrightness(16);
+    g_OLED.setTextColor(1, 0);
     g_OLED.refresh();
 
     // The software quadrature decoder uses GPIOTE so initialize it.
@@ -158,56 +167,54 @@ int main(void)
     // UNDONE: Making sure that I can debug my GPIOTE based encoder ISR. Maybe make it higher prio later?
     NVIC_SetPriority(GPIOTE_IRQn, _PRIO_APP_LOWEST);
 
-    // Init the wheel encoders.
-    bool result;
-    result = g_leftEncoder.init();
-    ASSERT ( result );
-    result = g_rightEncoder.init();
-    ASSERT ( result );
-
     // Initialize the ADC object which scans all of the configured ADC channels as often as possible (~200kHz).
+    bool result;
     result = g_adc.init();
     ASSERT ( result );
 
-    // Initialize and enable the dual channel motor controller.
-    result = g_motors.init();
+    // Initialize and enable the closed loop different drive system.
+    result = g_drive.init();
     ASSERT ( result );
-    g_motors.enable(true);
+    g_drive.enable();
 
     // Initialize GPIO pin for LED that is flashed to show progress.
     nrf_gpio_cfg_output(BLINK_LED_PIN);
-
-    // Used to calculate encoder tick deltas.
-    int32_t prevLeftCount = g_leftEncoder.getCount();
-    int32_t prevRightCount = g_rightEncoder.getCount();
 
     // Far enough along that it is safe for MRI to call our hooks to disable motors when entering the debugger.
     mriSetDebuggerHooks(enteringDebuggerHook, leavingDebuggerHook, NULL);
 
     // Enter main action loop.
     const uint32_t delayms = 10;
+    const uint32_t delay_us = delayms * 1000;
     const int32_t powerLimit = 50;
     const int32_t powerStep = 10;
     const uint32_t powerDelayms = 2000;
     int32_t power = 0;
     int32_t powerInc = powerStep;
     uint32_t powerIter = 0;
+    uint32_t count = 0;
+
+    // Setup the fixed heading text on the OLED.
+    g_OLED.clearScreen();
+    g_OLED.printf("    PWM:\n");
+    g_OLED.printf("Encoder:\n");
+    g_OLED.printf("    RPM:\n");
+    g_OLED.printf("     mA:\n");
+    g_OLED.printf(" Max mA:\n");
+
+    uint32_t prevTime = micros();
+    uint32_t prevDumpTime = prevTime;
     while (true)
     {
-        // Check to see if either motor controller has detected a fault (over voltage, over current, over temp, etc).
-        if (g_motors.hasEitherMotorEncounteredFault())
+        // Delay specified amount of time between iterations of the loop.
+        uint32_t currTime;
+        uint32_t elapsedTime;
+        do
         {
-            hangOnError("Motor fault detected!");
-        }
-
-        // Check for motor currents measured by ADC that are too high (software over current detection).
-        if (g_motors.hasEitherMotorDetectedCurrentOverload())
-        {
-            hangOnError("Motor over current detected!");
-        }
-
-        // Get the latest analog motor current readings.
-        DualTB9051FTGDrivers::CurrentReadings currentReadings = g_motors.getCurrentReadings();
+            currTime = micros();
+            elapsedTime = currTime - prevTime;
+        } while (elapsedTime < delay_us);
+        prevTime = currTime;
 
         // Every so often the motor power should be changed so that it oscillates back and forth between the set
         // positive and negative limits.
@@ -226,28 +233,48 @@ int main(void)
 
             powerIter = 0;
         }
-        g_motors.setPower(power, power);
+        // UNDONE: Fixing for now.
+        //power = 20;
 
-        // Retrieve left and right encoder tick counts.
-        int32_t leftCount = g_leftEncoder.getCount();
-        int32_t rightCount = g_rightEncoder.getCount();
+        DifferentialDrive::Values drivePower = { .left = power, .right = power };
+        g_drive.setPower(drivePower);
 
-        // Calculate encoder ticks/s rate.
-        int32_t leftRate = (leftCount - prevLeftCount) * (1000/delayms);
-        int32_t rightRate = (rightCount - prevRightCount) * (1000/delayms);
-        prevLeftCount = leftCount;
-        prevRightCount = rightCount;
+        DifferentialDrive::DriveStats stats = g_drive.getStats();
+        // Check to see if either motor controller has detected a fault (over voltage, over current, over temp, etc).
+        if (stats.faultDetected != DifferentialDrive::NEITHER)
+        {
+            hangOnError("Motor fault detected!");
+        }
+        // Check for motor currents measured by ADC that are too high (software over current detection).
+        if (stats.overcurrentDetected != DifferentialDrive::NEITHER)
+        {
+            hangOnError("Motor over current detected!");
+        }
 
         // Display PWM rate, encoder rate, motor current.
-        g_OLED.clearScreen();
-        g_OLED.printf("    PWM: %ld\n", power);
-        g_OLED.printf("Current: %ld, %lu\n", currentReadings.leftCurrent_mA, currentReadings.rightCurrent_mA);
-        g_OLED.printf("Encoder: %ld, %ld\n", leftRate, rightRate);
-//      g_OLED.printf("Encoder: %ld, %ld\n", leftCount, rightCount);
+        g_OLED.setCursor(8*6, 0*8);
+            g_OLED.printf("% 4ld", power);
+        g_OLED.setCursor(8*6, 1*8);
+            g_OLED.printf("% 6ld,% 6ld", stats.velocityActual.left, stats.velocityActual.right);
+        g_OLED.setCursor(8*6, 2*8);
+            g_OLED.printf("% 4ld,% 4ld", stats.velocityActual.left * 60 / MOTOR_TICKS_PER_REV,
+                                          stats.velocityActual.right * 60 / MOTOR_TICKS_PER_REV);
+        g_OLED.setCursor(8*6, 3*8);
+            g_OLED.printf("% 4ld,% 4ld", stats.current_mA.left, stats.current_mA.right);
+        g_OLED.setCursor(8*6, 4*8);
+            g_OLED.printf("% 4ld,% 4ld\n", stats.maxCurrent_mA.left, stats.maxCurrent_mA.right);
         g_OLED.refresh();
 
-        // UNDONE: Simulating a 100Hz PID loop.
-        nrf_delay_ms(delayms);
+        // Dump frame count once every 10 seconds.
+        count++;
+        currTime = micros();
+        elapsedTime = currTime - prevDumpTime;
+        if (elapsedTime >= 10*1000000)
+        {
+            printf("%lu\n", count);
+            prevDumpTime = currTime;
+            count = 0;
+        }
     }
 }
 
@@ -291,7 +318,7 @@ static void hangOnError(const char* pErrorMessage)
     g_OLED.printf("%s", pErrorMessage);
     g_OLED.refresh();
 
-    g_motors.enable(false);
+    g_drive.disable();
     while (true)
     {
         // Loop here forever if a motor fault has been detected.
@@ -318,7 +345,7 @@ static void enteringDebuggerHook(void* pvContext)
     }
 
     // Stop the motors when entering the debugger so that the robot doesn't run off.
-    g_motors.enable(false);
+    g_drive.disable();
 }
 
 static void leavingDebuggerHook(void* pvContext)
@@ -329,7 +356,7 @@ static void leavingDebuggerHook(void* pvContext)
     }
 
     // Can re-enable the motors now.
-    g_motors.enable(true);
+    g_drive.enable();
 }
 
 

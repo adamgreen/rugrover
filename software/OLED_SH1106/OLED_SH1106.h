@@ -52,6 +52,10 @@ public:
     // Must call refresh() or refreshAsync() to later rendered on actual OLED screen.
     virtual void drawPixel(int16_t x, int16_t y, uint16_t color);
 
+    // Optimized version of drawChar() customized for the usage pattern used in the RugRover project. Any other usage
+    // falls back to the implementation in the base class.
+    void drawChar(int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t bg, uint8_t size_x, uint8_t size_y);
+
     // Optionally defined by Adafruit_GFX subclass.
     virtual void invertDisplay(bool invert);
 
@@ -109,6 +113,7 @@ protected:
         }
     }
     void sendCommands(const uint8_t* pCommands, size_t commandSize, bool block = true);
+    void drawCharWithAlphaSupport(int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t bg);
 
     void handleEvent(nrf_drv_spi_evt_t const * pEvent);
     static void handleSpiEvent(nrf_drv_spi_evt_t const * pEvent);
@@ -117,8 +122,12 @@ protected:
     // The priority level at which the SPI ISR runs.
     app_irq_priority_t m_irqPriority;
 
-    // Adafruit_GFX drawing APIs will end up drawing to this in-memory frame buffer.
-    uint8_t m_frame[OLED_SH1106_FRAME_SIZE];
+    // Adafruit_GFX drawing APIs will end up drawing to these in-memory frame buffers.
+    // The driver ping pongs between the two instance. While using DMA to write one out over the SPI bus, the other
+    // buffer is being drawn into.
+    __attribute__ ((aligned (4))) uint8_t m_frames[2][OLED_SH1106_FRAME_SIZE];
+    uint8_t* m_pDrawFrame;
+    uint8_t* m_pDmaFrame;
 
     // The OLED may not have column and row 0 connected to common and segment 0. These offsets account for that.
     uint8_t m_colOffset;

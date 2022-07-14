@@ -12,21 +12,23 @@
 */
 // Driver to use the SAADC peripheral to continously scan the configured analog pins and track the latest stats
 // (min, max, mean, latest) of analog measurements made since the last read request.
+#include <nrf_drv_common.h>
 #include "SAADCScanner.h"
 
-SAADCScanner* SAADCScanner::m_pThis = NULL;
+SAADCScanner* g_pThis = NULL;
+
 
 SAADCScanner::SAADCScanner(nrf_saadc_resolution_t resolution /* = NRF_SAADC_RESOLUTION_12BIT */,
                            uint8_t irqPriority /* = _PRIO_APP_LOWEST*/)
 {
     // Can only instantiate one SAADCScanner object.
-    ASSERT ( m_pThis == NULL );
+    ASSERT ( g_pThis == NULL );
 
     m_usedChannelCount = 0;
     memset(m_buffer, 0, sizeof(m_buffer));
     m_resolution = resolution;
     m_irqPriority = irqPriority;
-    m_pThis = this;
+    g_pThis = this;
 
     for (size_t i = 0 ; i < sizeof(m_channels)/sizeof(m_channels[0]) ; i++)
     {
@@ -36,19 +38,14 @@ SAADCScanner::SAADCScanner(nrf_saadc_resolution_t resolution /* = NRF_SAADC_RESO
 
 bool SAADCScanner::init()
 {
-    nrf_drv_saadc_config_t config =
-    {
-        .resolution = m_resolution,
-        .oversample = NRF_SAADC_OVERSAMPLE_DISABLED,
-        .interrupt_priority = m_irqPriority,
-        .low_power_mode = false
-    };
+    nrf_saadc_resolution_set(m_resolution);
+    nrf_saadc_oversample_set(NRF_SAADC_OVERSAMPLE_DISABLED);
 
-    uint32_t result = nrf_drv_saadc_init(&config, eventHandler);
-    if (result != NRF_SUCCESS)
-    {
-        return false;
-    }
+    nrf_saadc_int_disable(NRF_SAADC_INT_ALL);
+    nrf_saadc_event_clear(NRF_SAADC_EVENT_END);
+    nrf_drv_common_irq_enable(SAADC_IRQn, m_irqPriority);
+    nrf_saadc_int_enable(NRF_SAADC_INT_END);
+    nrf_saadc_enable();
 
     return true;
 }
@@ -86,48 +83,28 @@ SAADCScanner::Channel* SAADCScanner::findFreeChannel()
     return &m_channels[m_usedChannelCount++];
 }
 
-bool SAADCScanner::startScanning()
+void SAADCScanner::startScanning()
 {
-    uint32_t result;
+        nrf_saadc_buffer_init(m_buffer, m_usedChannelCount);
+        nrf_saadc_event_clear(NRF_SAADC_EVENT_STARTED);
+        nrf_saadc_task_trigger(NRF_SAADC_TASK_START);
 
-    result = nrf_drv_saadc_buffer_convert(m_buffer, m_usedChannelCount);
-    if (result != NRF_SUCCESS)
-    {
-        return false;
-    }
-    result = nrf_drv_saadc_sample();
-    if (result != NRF_SUCCESS)
-    {
-        return false;
-    }
-
-    return true;
+        nrf_saadc_task_trigger(NRF_SAADC_TASK_SAMPLE);
 }
 
-void SAADCScanner::eventHandler(nrf_drv_saadc_evt_t const * pEvent)
+extern "C" void SAADC_IRQHandler(void)
 {
-    bool result;
-
-    switch (pEvent->type)
+    if (!nrf_saadc_event_check(NRF_SAADC_EVENT_END))
     {
-        case NRF_DRV_SAADC_EVT_DONE:
-            ASSERT ( pEvent->data.done.size == m_pThis->m_usedChannelCount );
-            for (size_t i = 0 ; i < pEvent->data.done.size ; i++)
-            {
-                m_pThis->m_channels[i].update(pEvent->data.done.p_buffer[i]);
-            }
-            result = m_pThis->startScanning();
-            ASSERT ( result );
-            break;
-
-        case NRF_DRV_SAADC_EVT_LIMIT:
-            ASSERT ( pEvent->data.limit.channel < m_pThis->m_usedChannelCount );
-            m_pThis->m_channels[pEvent->data.limit.channel].limitExceeded(pEvent->data.limit.limit_type);
-            break;
-
-        case NRF_DRV_SAADC_EVT_CALIBRATEDONE:
-            break;
+        return;
     }
+    nrf_saadc_event_clear(NRF_SAADC_EVENT_END);
+
+    for (size_t i = 0 ; i < g_pThis->m_usedChannelCount ; i++)
+    {
+        g_pThis->m_channels[i].update(g_pThis->m_buffer[i]);
+    }
+    g_pThis->startScanning();
 }
 
 
@@ -197,12 +174,10 @@ bool SAADCScanner::Channel::init(uint8_t pin,
         .pin_p = analogPin,
         .pin_n = NRF_SAADC_INPUT_DISABLED
     };
-    uint32_t result = nrf_drv_saadc_channel_init(m_index, &config);
-    if (result != NRF_SUCCESS)
-    {
-        return false;
-    }
-    nrf_drv_saadc_limits_set(m_index, lowLimit, highLimit);
+    nrf_saadc_channel_init(m_index, &config);
+
+    m_lowLimit = lowLimit;
+    m_highLimit = highLimit;
 
     return true;
 }
@@ -220,20 +195,19 @@ void SAADCScanner::Channel::update(int16_t latestSample)
     {
         m_max = latestSample;
     }
-}
 
-void SAADCScanner::Channel::limitExceeded(nrf_saadc_limit_t limitHit)
-{
-    switch (limitHit)
+    bool limitExceeded = false;
+    if (latestSample < m_lowLimit)
     {
-        case NRF_SAADC_LIMIT_LOW:
-            m_lowLimitExceeded = true;
-            break;
-        case NRF_SAADC_LIMIT_HIGH:
-            m_highLimitExceeded = true;
-            break;
+        m_lowLimitExceeded = true;
+        limitExceeded = true;
     }
-    if (m_pNotification != NULL)
+    if (latestSample > m_highLimit)
+    {
+        m_highLimitExceeded = true;
+        limitExceeded = true;
+    }
+    if (limitExceeded && m_pNotification != NULL)
     {
         m_pNotification->notifyLimitExceeded(m_lowLimitExceeded, m_highLimitExceeded);
     }
