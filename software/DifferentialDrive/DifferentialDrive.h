@@ -32,6 +32,7 @@ class DifferentialDrive
                           uint8_t rightEnablePin, uint8_t rightPwm1Pin, uint8_t rightPwm2Pin,
                           uint8_t rightDiagPin, uint8_t rightOcmPin, bool rightReverse,
                           uint8_t rightEncoderAPin, uint8_t rightEncoderBPin,
+                          uint32_t encoderTicksPerRevolution,
                           float pidKc, float pidTi, float pidTd, uint32_t maxMotorPercentage,
                           SAADCScanner* pADC,
                           nrf_drv_pwm_t* pPWM, uint32_t frequency,
@@ -51,17 +52,23 @@ class DifferentialDrive
             int32_t right;
         };
 
+        struct FloatValues
+        {
+            float left;
+            float right;
+        };
+
         struct DriveStats
         {
-            Values  velocityRequested;
-            Values  velocityActual;
-            Values  encoderCount;
-            Values  power;
-            Values  current_mA;
-            Values  maxCurrent_mA;
-            Bits    faultDetected;
-            Bits    overcurrentDetected;
-            bool    autoMode;
+            FloatValues velocityRequested;
+            FloatValues velocityActual;
+            Values      encoderCount;
+            Values      power;
+            Values      current_mA;
+            Values      maxCurrent_mA;
+            Bits        faultDetected;
+            Bits        overcurrentDetected;
+            bool        autoMode;
         };
 
         bool init()
@@ -85,10 +92,10 @@ class DifferentialDrive
             m_motors.enable(false);
         }
 
-        void setVelocity(Values& ticksPerSecond)
+        void setVelocity(FloatValues& rpm)
         {
-            m_leftPID.updateSetPoint(ticksPerSecond.left);
-            m_rightPID.updateSetPoint(ticksPerSecond.right);
+            m_leftPID.updateSetPoint(rpm.left);
+            m_rightPID.updateSetPoint(rpm.right);
 
             updateMotors();
         }
@@ -107,9 +114,10 @@ class DifferentialDrive
         void updateMotors();
 
         uint32_t                    m_prevSampleTime;
+        float                       m_encoderTicksPerRevolution;
         Values                      m_prevTicks;
         Values                      m_maxCurrents_mA;
-        Values                      m_prevVelocities;
+        FloatValues                 m_prevVelocities;
         QuadratureDecoderHardware   m_leftEncoder;
         QuadratureDecoderSoftware   m_rightEncoder;
         PID                         m_leftPID;

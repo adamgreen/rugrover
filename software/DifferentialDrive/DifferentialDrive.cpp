@@ -21,6 +21,7 @@ DifferentialDrive::DifferentialDrive(uint8_t leftEnablePin, uint8_t leftPwm1Pin,
                     uint8_t rightEnablePin, uint8_t rightPwm1Pin, uint8_t rightPwm2Pin,
                     uint8_t rightDiagPin, uint8_t rightOcmPin, bool rightReverse,
                     uint8_t rightEncoderAPin, uint8_t rightEncoderBPin,
+                    uint32_t encoderTicksPerRevolution,
                     float pidKc, float pidTi, float pidTd, uint32_t maxMotorPercentage,
                     SAADCScanner* pADC,
                     nrf_drv_pwm_t* pPWM, uint32_t frequency,
@@ -39,6 +40,7 @@ DifferentialDrive::DifferentialDrive(uint8_t leftEnablePin, uint8_t leftPwm1Pin,
     m_leftReverse = leftReverse;
     m_rightReverse = rightReverse;
     m_prevSampleTime = 0;
+    m_encoderTicksPerRevolution = (float)encoderTicksPerRevolution;
 }
 
 void DifferentialDrive::updateMotors()
@@ -56,17 +58,16 @@ void DifferentialDrive::updateMotors()
     {
         rightTicks = -rightTicks;
     }
-    int32_t leftDiff = leftTicks - m_prevTicks.left;
-    int32_t rightDiff = rightTicks - m_prevTicks.right;
+    volatile int32_t leftDiff = leftTicks - m_prevTicks.left;
+    volatile int32_t rightDiff = rightTicks - m_prevTicks.right;
     m_prevTicks.left = leftTicks;
     m_prevTicks.right = rightTicks;
 
     int32_t elapsedTime_us = currentSampleTime - m_prevSampleTime;
-    int32_t elapsedTime_ms = (elapsedTime_us + 500) / 1000;
     m_prevSampleTime = currentSampleTime;
 
-    int32_t leftVelocity = leftDiff * 1000 / elapsedTime_ms;
-    int32_t rightVelocity = rightDiff * 1000 / elapsedTime_ms;
+    float leftVelocity = ((float)leftDiff * 60.0f * 1000000.0f) / ((float)elapsedTime_us * m_encoderTicksPerRevolution);
+    float rightVelocity = ((float)rightDiff * 60.0f * 1000000.0f) / ((float)elapsedTime_us * m_encoderTicksPerRevolution);
 
     float elapsedTime = (float)elapsedTime_us / 1000000.0f;
     m_leftPID.setSampleTime(elapsedTime);

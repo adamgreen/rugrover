@@ -131,6 +131,7 @@ static DifferentialDrive    g_drive(LMOTOR_EN_PIN, LMOTOR_PWM1_PIN, LMOTOR_PWM2_
                                      RMOTOR_EN_PIN, RMOTOR_PWM1_PIN, RMOTOR_PWM2_PIN,
                                      RMOTOR_DIAG_PIN, RMOTOR_OCM_PIN, RMOTOR_REVERSE,
                                      RMOTOR_ENCODER_A_PIN, RMOTOR_ENCODER_B_PIN,
+                                     MOTOR_TICKS_PER_REV,
                                      MOTOR_PID_Kc, MOTOR_PID_Ti, MOTOR_PID_Td, MOTOR_PID_MAX_PERCENT,
                                      &g_adc,
                                      &g_PWM, MOTOR_FREQUENCY, MOTOR_MAX_CURRENT_mA);
@@ -197,7 +198,6 @@ int main(void)
     // Setup the fixed heading text on the OLED.
     g_OLED.clearScreen();
     g_OLED.printf("    PWM:\n");
-    g_OLED.printf("Encoder:\n");
     g_OLED.printf("    RPM:\n");
     g_OLED.printf("     mA:\n");
     g_OLED.printf(" Max mA:\n");
@@ -255,13 +255,10 @@ int main(void)
         g_OLED.setCursor(8*6, 0*8);
             g_OLED.printf("% 4ld", power);
         g_OLED.setCursor(8*6, 1*8);
-            g_OLED.printf("% 6ld,% 6ld", stats.velocityActual.left, stats.velocityActual.right);
+            g_OLED.printf("% 4ld,% 4ld", (int32_t)stats.velocityActual.left, (int32_t)stats.velocityActual.right);
         g_OLED.setCursor(8*6, 2*8);
-            g_OLED.printf("% 4ld,% 4ld", stats.velocityActual.left * 60 / MOTOR_TICKS_PER_REV,
-                                          stats.velocityActual.right * 60 / MOTOR_TICKS_PER_REV);
-        g_OLED.setCursor(8*6, 3*8);
             g_OLED.printf("% 4ld,% 4ld", stats.current_mA.left, stats.current_mA.right);
-        g_OLED.setCursor(8*6, 4*8);
+        g_OLED.setCursor(8*6, 3*8);
             g_OLED.printf("% 4ld,% 4ld\n", stats.maxCurrent_mA.left, stats.maxCurrent_mA.right);
         g_OLED.refresh();
 
