@@ -58,8 +58,8 @@ void DifferentialDrive::updateMotors()
     {
         rightTicks = -rightTicks;
     }
-    volatile int32_t leftDiff = leftTicks - m_prevTicks.left;
-    volatile int32_t rightDiff = rightTicks - m_prevTicks.right;
+    int32_t leftDiff = leftTicks - m_prevTicks.left;
+    int32_t rightDiff = rightTicks - m_prevTicks.right;
     m_prevTicks.left = leftTicks;
     m_prevTicks.right = rightTicks;
 
