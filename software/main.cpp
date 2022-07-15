@@ -110,6 +110,14 @@
 
 
 
+// Enumeration of routines which can be run from the main loop.
+enum DebugRoutines
+{
+    DEBUG_PID = 1,
+    DEBUG_MAX
+};
+
+
 
 // SPIM instance used for driving the OLED.
 static const nrf_drv_spi_t  g_spiOLED = NRF_DRV_SPI_INSTANCE(OLED_SPI_INSTANCE);
@@ -136,8 +144,15 @@ static DifferentialDrive    g_drive(LMOTOR_EN_PIN, LMOTOR_PWM1_PIN, LMOTOR_PWM2_
                                      &g_adc,
                                      &g_PWM, MOTOR_FREQUENCY, MOTOR_MAX_CURRENT_mA);
 
+// If this global gets set to non-zero from debugger then enter debug menu.
+static int           g_dbg = 0;
+
+// Which debug routine should be executed.
+static DebugRoutines g_dbgRoutine = DEBUG_PID;
 
 
+
+static void testPidRoutine();
 static void verifyUICRBits();
 static void hangOnError(const char* pErrorMessage);
 static void enteringDebuggerHook(void* pvContext);
@@ -184,6 +199,43 @@ int main(void)
     // Far enough along that it is safe for MRI to call our hooks to disable motors when entering the debugger.
     mriSetDebuggerHooks(enteringDebuggerHook, leavingDebuggerHook, NULL);
 
+    while (true)
+    {
+        g_dbg = 0;
+        switch (g_dbgRoutine)
+        {
+            case DEBUG_PID:
+                testPidRoutine();
+                break;
+            default:
+                break;
+        }
+
+        while (true)
+        {
+            uint32_t choice = 0;
+            char     buffer[16];
+
+            printf("\n\nDebug Menu\n");
+            printf("1. Test PID code\n");
+            printf("\nSelect: ");
+            fgets(buffer, sizeof(buffer), stdin);
+            choice = strtoul(buffer, NULL, 10);
+            if (choice < 1 || choice >= DEBUG_MAX)
+            {
+                printf("Invalid selection\n");
+            }
+            else
+            {
+                g_dbgRoutine = (DebugRoutines)choice;
+                break;
+            }
+        }
+    }
+}
+
+static void testPidRoutine()
+{
     // Enter main action loop.
     const uint32_t delayms = 10;
     const uint32_t delay_us = delayms * 1000;
@@ -211,6 +263,11 @@ int main(void)
         uint32_t elapsedTime;
         do
         {
+            if (g_dbg)
+            {
+                return;
+            }
+
             currTime = micros();
             elapsedTime = currTime - prevTime;
         } while (elapsedTime < delay_us);
