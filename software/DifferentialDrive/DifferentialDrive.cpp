@@ -21,7 +21,6 @@ DifferentialDrive::DifferentialDrive(uint8_t leftEnablePin, uint8_t leftPwm1Pin,
                     uint8_t rightEnablePin, uint8_t rightPwm1Pin, uint8_t rightPwm2Pin,
                     uint8_t rightDiagPin, uint8_t rightOcmPin, bool rightReverse,
                     uint8_t rightEncoderAPin, uint8_t rightEncoderBPin,
-                    uint32_t encoderTicksPerRevolution,
                     float pidKc, float pidTi, float pidTd, uint32_t maxMotorPercentage,
                     SAADCScanner* pADC,
                     nrf_drv_pwm_t* pPWM, uint32_t frequency,
@@ -39,15 +38,12 @@ DifferentialDrive::DifferentialDrive(uint8_t leftEnablePin, uint8_t leftPwm1Pin,
     memset(&m_prevVelocities, 0, sizeof(m_prevVelocities));
     m_leftReverse = leftReverse;
     m_rightReverse = rightReverse;
-    m_prevSampleTime = 0;
-    m_encoderTicksPerRevolution = (float)encoderTicksPerRevolution;
 }
 
 void DifferentialDrive::updateMotors()
 {
     // The encoder counts by default go negative for forward motion so negate them so that they match reversing that I
     // do on the motors.
-    uint32_t currentSampleTime = micros();
     int32_t leftTicks = -m_leftEncoder.getCount();
     int32_t rightTicks = -m_rightEncoder.getCount();
     if (m_leftReverse)
@@ -63,18 +59,11 @@ void DifferentialDrive::updateMotors()
     m_prevTicks.left = leftTicks;
     m_prevTicks.right = rightTicks;
 
-    int32_t elapsedTime_us = currentSampleTime - m_prevSampleTime;
-    m_prevSampleTime = currentSampleTime;
+    float leftVelocity = leftDiff;
+    float rightVelocity = rightDiff;
 
-    float leftVelocity = ((float)leftDiff * 60.0f * 1000000.0f) / ((float)elapsedTime_us * m_encoderTicksPerRevolution);
-    float rightVelocity = ((float)rightDiff * 60.0f * 1000000.0f) / ((float)elapsedTime_us * m_encoderTicksPerRevolution);
-
-    float elapsedTime = (float)elapsedTime_us / 1000000.0f;
-    m_leftPID.setSampleTime(elapsedTime);
-    m_rightPID.setSampleTime(elapsedTime);
-
-    int32_t leftPower = m_leftPID.compute(leftVelocity);
-    int32_t rightPower = m_rightPID.compute(rightVelocity);
+    int32_t leftPower = (int32_t)(m_leftPID.compute(leftVelocity) + 0.5f);
+    int32_t rightPower = (int32_t)(m_rightPID.compute(rightVelocity) + 0.5f);
     m_motors.setPower(leftPower, rightPower);
 
     m_prevVelocities.left = leftVelocity;

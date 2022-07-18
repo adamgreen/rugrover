@@ -91,10 +91,24 @@
 // Don't allow motor current to go over 1.5A.
 #define MOTOR_MAX_CURRENT_mA    1500
 
-// PID contants used for the motors.
-#define MOTOR_PID_Kc            1.0f
-#define MOTOR_PID_Ti            0.0f
-#define MOTOR_PID_Td            0.0f
+/* PID contants used for the motors.
+        ΔPV=15.500001
+        ΔCO=30.000000
+        Kp=0.516667
+        Tp=60028 us
+        ϴp=10004 us
+        Aggressive Kc=9.678014
+        Moderate Kc=1.480167
+        Conservative Kc=0.156291
+        Ti=0.065030 s
+        Td=0.004617 s
+*/
+#define MOTOR_PID_Kc            0.156291f
+#define MOTOR_PID_Ti            0.065030f
+#define MOTOR_PID_Td            0.004617f
+
+// PID Frequency
+#define MOTOR_PID_FREQUENCY     100
 
 // Don't allow the PID controller to command the motor power past this percentage value (0 - 100).
 #define MOTOR_PID_MAX_PERCENT   80
@@ -114,6 +128,7 @@
 enum DebugRoutines
 {
     DEBUG_PID = 1,
+    DEBUG_PID_CALIBRATE = 2,
     DEBUG_MAX
 };
 
@@ -139,7 +154,6 @@ static DifferentialDrive    g_drive(LMOTOR_EN_PIN, LMOTOR_PWM1_PIN, LMOTOR_PWM2_
                                      RMOTOR_EN_PIN, RMOTOR_PWM1_PIN, RMOTOR_PWM2_PIN,
                                      RMOTOR_DIAG_PIN, RMOTOR_OCM_PIN, RMOTOR_REVERSE,
                                      RMOTOR_ENCODER_A_PIN, RMOTOR_ENCODER_B_PIN,
-                                     MOTOR_TICKS_PER_REV,
                                      MOTOR_PID_Kc, MOTOR_PID_Ti, MOTOR_PID_Td, MOTOR_PID_MAX_PERCENT,
                                      &g_adc,
                                      &g_PWM, MOTOR_FREQUENCY, MOTOR_MAX_CURRENT_mA);
@@ -153,6 +167,8 @@ static DebugRoutines g_dbgRoutine = DEBUG_PID;
 
 
 static void testPidRoutine();
+static void sleep_us(uint32_t* pPrevTime, uint32_t delay);
+static void testPidCalibrateRoutine();
 static void verifyUICRBits();
 static void hangOnError(const char* pErrorMessage);
 static void enteringDebuggerHook(void* pvContext);
@@ -175,13 +191,12 @@ int main(void)
     g_OLED.setRotation(2);
     g_OLED.setBrightness(16);
     g_OLED.setTextColor(1, 0);
-    g_OLED.refresh();
 
     // The software quadrature decoder uses GPIOTE so initialize it.
     nrf_drv_gpiote_init();
 
-    // UNDONE: Making sure that I can debug my GPIOTE based encoder ISR. Maybe make it higher prio later?
-    NVIC_SetPriority(GPIOTE_IRQn, _PRIO_APP_LOWEST);
+    // Run software quadrature decoder GPIOTE ISR at the highest app priority.
+    NVIC_SetPriority(GPIOTE_IRQn, _PRIO_APP_HIGH);
 
     // Initialize the ADC object which scans all of the configured ADC channels as often as possible (~200kHz).
     bool result;
@@ -207,17 +222,24 @@ int main(void)
             case DEBUG_PID:
                 testPidRoutine();
                 break;
+            case DEBUG_PID_CALIBRATE:
+                testPidCalibrateRoutine();
+                break;
             default:
                 break;
         }
 
+        g_OLED.clearScreen();
+        g_OLED.printf("Debug Menu Active in GDB");
+        g_OLED.refreshAndBlock();
         while (true)
         {
             uint32_t choice = 0;
             char     buffer[16];
 
             printf("\n\nDebug Menu\n");
-            printf("1. Test PID code\n");
+            printf("1. Test PID\n");
+            printf("2. Run PID calibration\n");
             printf("\nSelect: ");
             fgets(buffer, sizeof(buffer), stdin);
             choice = strtoul(buffer, NULL, 10);
@@ -237,61 +259,165 @@ int main(void)
 static void testPidRoutine()
 {
     // Enter main action loop.
-    const uint32_t delayms = 10;
+    const uint32_t delayms = 1000 / MOTOR_PID_FREQUENCY;
     const uint32_t delay_us = delayms * 1000;
-    const int32_t powerLimit = 50;
-    const int32_t powerStep = 10;
-    const uint32_t powerDelayms = 2000;
-    int32_t power = 0;
-    int32_t powerInc = powerStep;
-    uint32_t powerIter = 0;
+    const int32_t velocityLimit = 25;
+    const int32_t velocityStep = 5;
+    const uint32_t velocityDelayms = 2000;
+    int32_t velocity = 0;
+    int32_t velocityInc = velocityStep;
+    uint32_t velocityIter = 0;
     uint32_t count = 0;
 
     // Setup the fixed heading text on the OLED.
     g_OLED.clearScreen();
-    g_OLED.printf("    PWM:\n");
-    g_OLED.printf("    RPM:\n");
-    g_OLED.printf("     mA:\n");
-    g_OLED.printf(" Max mA:\n");
+    g_OLED.printf("   Set:\n");
+    g_OLED.printf(" Ticks:\n");
+    g_OLED.printf(" Power:\n");
+    g_OLED.printf("    mA:\n");
+    g_OLED.printf("Max mA:\n");
 
     uint32_t prevTime = micros();
     uint32_t prevDumpTime = prevTime;
     while (true)
     {
         // Delay specified amount of time between iterations of the loop.
-        uint32_t currTime;
-        uint32_t elapsedTime;
-        do
+        sleep_us(&prevTime, delay_us);
+        if (g_dbg)
         {
-            if (g_dbg)
-            {
-                return;
-            }
+            return;
+        }
 
-            currTime = micros();
-            elapsedTime = currTime - prevTime;
-        } while (elapsedTime < delay_us);
-        prevTime = currTime;
-
-        // Every so often the motor power should be changed so that it oscillates back and forth between the set
+        // Every so often the motor velocity should be changed so that it oscillates back and forth between the set
         // positive and negative limits.
-        if (++powerIter >= powerDelayms/delayms)
+        if (++velocityIter >= velocityDelayms/delayms)
         {
-            // Update motor power.
-            power += powerInc;
-            if (abs(power) > powerLimit)
+            // Update motor velocity.
+            velocity += velocityInc;
+            if (abs(velocity) > velocityLimit)
             {
-                powerInc = -powerInc;
-                power += 2*powerInc;
+                velocityInc = -velocityInc;
+                velocity += 2*velocityInc;
             }
 
             // Toggle the LED to show progress.
             nrf_gpio_pin_toggle(BLINK_LED_PIN);
 
-            powerIter = 0;
+            velocityIter = 0;
         }
-        // UNDONE: Fixing for now.
-        //power = 20;
+
+        DifferentialDrive::FloatValues driveVelocity = { .left = (float)velocity, .right = (float)velocity };
+        g_drive.setVelocity(driveVelocity);
+
+        DifferentialDrive::DriveStats stats = g_drive.getStats();
+        // Check to see if either motor controller has detected a fault (over voltage, over current, over temp, etc).
+        if (stats.faultDetected != DifferentialDrive::NEITHER)
+        {
+            hangOnError("Motor fault detected!");
+        }
+        // Check for motor currents measured by ADC that are too high (software over current detection).
+        if (stats.overcurrentDetected != DifferentialDrive::NEITHER)
+        {
+            hangOnError("Motor over current detected!");
+        }
+
+        // Display PWM rate, encoder rate, motor current.
+        g_OLED.setCursor(7*6, 0*8);
+            g_OLED.printf("%4ld", velocity);
+        g_OLED.setCursor(7*6, 1*8);
+            g_OLED.printf("%4ld,%4ld", stats.velocityActual.left, stats.velocityActual.right);
+        g_OLED.setCursor(7*6, 2*8);
+            g_OLED.printf("%4ld,%4ld", stats.power.left, stats.power.right);
+        g_OLED.setCursor(7*6, 3*8);
+            g_OLED.printf("%4ld,%4ld", stats.current_mA.left, stats.current_mA.right);
+        g_OLED.setCursor(7*6, 4*8);
+            g_OLED.printf("%4ld,%4ld\n", stats.maxCurrent_mA.left, stats.maxCurrent_mA.right);
+        g_OLED.refresh();
+
+        // Dump frame count once every 10 seconds.
+        count++;
+        uint32_t currTime = micros();
+        uint32_t elapsedTime = currTime - prevDumpTime;
+        if (elapsedTime >= 10*1000000)
+        {
+            printf("%lu\n", count);
+            prevDumpTime = currTime;
+            count = 0;
+        }
+    }
+}
+
+static void sleep_us(uint32_t* pPrevTime, uint32_t delay)
+{
+    // Delay specified amount of time.
+    uint32_t prevTime = *pPrevTime;
+    uint32_t currTime;
+    uint32_t elapsedTime;
+    do
+    {
+        if (g_dbg)
+        {
+            return;
+        }
+
+        currTime = micros();
+        elapsedTime = currTime - prevTime;
+    } while (elapsedTime < delay);
+    *pPrevTime = currTime;
+}
+
+static void testPidCalibrateRoutine()
+{
+    // Can try the right motor as well and compare.
+    #define PID_CALIBRATE_MOTOR left
+
+    // Parameters that can be tweaked for this calibration.
+    const int32_t  initialPower = 20;
+    const int32_t  bumpPower = 50;
+    const uint32_t initialSampleCount = 200;
+    const uint32_t bumpSampleCount = 200;
+    const uint32_t delayms = 1000 / MOTOR_PID_FREQUENCY;
+    const uint32_t delay_us = delayms * 1000;
+
+    // Let the user know that we are running the PID calibration routine.
+    g_OLED.clearScreen();
+    g_OLED.printf("PID Calibration");
+    g_OLED.refreshAndBlock();
+
+    // Count down for 10 seconds before actually running the test.
+    uint32_t prevTime = micros();
+    for (int i = 10 ; i > 0 ; i--)
+    {
+        g_OLED.setCursor(0, 2*8);
+            g_OLED.printf("%2d", i);
+        g_OLED.refresh();
+        sleep_us(&prevTime, 1000000);
+    }
+    g_OLED.setCursor(0, 2*8);
+        g_OLED.printf("Running...");
+    g_OLED.refreshAndBlock();
+
+    // Enter main action loop.
+    int32_t power = initialPower;
+    struct SamplePoints
+    {
+        uint32_t usec;
+        int32_t  ticks;
+    } samples[initialSampleCount+bumpSampleCount];
+    prevTime = micros();
+    for (size_t i = 0 ; i < ARRAY_SIZE(samples) ; i++)
+    {
+        sleep_us(&prevTime, delay_us);
+        if (g_dbg)
+        {
+            return;
+        }
+
+        // Step up motor power at the desired sample interval.
+        if (i >= initialSampleCount)
+        {
+            power = bumpPower;
+        }
 
         DifferentialDrive::Values drivePower = { .left = power, .right = power };
         g_drive.setPower(drivePower);
@@ -308,34 +434,123 @@ static void testPidRoutine()
             hangOnError("Motor over current detected!");
         }
 
-        // Display PWM rate, encoder rate, motor current.
-        g_OLED.setCursor(8*6, 0*8);
-            g_OLED.printf("% 4ld", power);
-        g_OLED.setCursor(8*6, 1*8);
-            g_OLED.printf("% 4ld,% 4ld", (int32_t)stats.velocityActual.left, (int32_t)stats.velocityActual.right);
-        g_OLED.setCursor(8*6, 2*8);
-            g_OLED.printf("% 4ld,% 4ld", stats.current_mA.left, stats.current_mA.right);
-        g_OLED.setCursor(8*6, 3*8);
-            g_OLED.printf("% 4ld,% 4ld\n", stats.maxCurrent_mA.left, stats.maxCurrent_mA.right);
-        g_OLED.refresh();
+        // Record this sample to RAM for later dumping.
+        samples[i].usec = prevTime;
+        samples[i].ticks = stats.velocityActual.PID_CALIBRATE_MOTOR;
+    }
+    g_drive.disable();
 
-        // Dump frame count once every 10 seconds.
-        count++;
-        currTime = micros();
-        elapsedTime = currTime - prevDumpTime;
-        if (elapsedTime >= 10*1000000)
+    g_OLED.setCursor(0, 2*8);
+        g_OLED.printf("Saving calibration data... ");
+    g_OLED.refreshAndBlock();
+
+    // Output the results to a calibrate.csv file where GDB is running on the host.
+    FILE* pFile = fopen("calibrate.csv", "w");
+    if (pFile == NULL)
+    {
+        hangOnError("error: Failed to open calibrate.csv");
+        return;
+    }
+    uint32_t baseTime = samples[0].usec;
+    fprintf(pFile, "usec,power,ticks\n");
+    for (size_t i = 0 ; i < ARRAY_SIZE(samples) ; i++)
+    {
+        int32_t power = initialPower;
+        if (i >= initialSampleCount)
         {
-            printf("%lu\n", count);
-            prevDumpTime = currTime;
-            count = 0;
+            power = bumpPower;
         }
+
+        fprintf(pFile, "%lu,%ld,%ld\n", samples[i].usec-baseTime, power, samples[i].ticks);
+    }
+    fclose(pFile);
+
+    // Calculate the model parameters from the sampled data.
+    // Average of PV value before CO is changed.
+    float sum = 0.0f;
+    for (size_t i = initialSampleCount-10 ; i < initialSampleCount ; i++)
+    {
+        sum += (float)samples[i].ticks;
+    }
+    float lowPV = sum / 10.0f;
+    // Average of PV value after CO is changed, the last few samples.
+    sum = 0.0f;
+    for (size_t i = ARRAY_SIZE(samples)-10 ; i < ARRAY_SIZE(samples) ; i++)
+    {
+        sum += (float)samples[i].ticks;
+    }
+    float highPV = sum / 10.0f;
+    // Can now calculate deltaPV.
+    float deltaPV = highPV - lowPV;
+    // deltaCO is difference between high and low power settings.
+    float deltaCO = bumpPower - initialPower;
+    float Kp = deltaPV / deltaCO;
+    // Calculate PV value at which 63% of the deltaPV has occurred.
+    float limitPV = lowPV + 0.63f * deltaPV;
+    // Search the samples after the bump to find when PV starts changing to find dead time and when it reaches 63% of
+    // deltaPV.
+    bool foundDeadTime = false;
+    uint32_t startTime = samples[initialSampleCount].usec;
+    uint32_t deadTime = 0;
+    uint32_t Tp = 0;
+    for (size_t i = initialSampleCount ; i < ARRAY_SIZE(samples) ; i++)
+    {
+        if (!foundDeadTime && samples[i].ticks > lowPV + 1.0)
+        {
+            foundDeadTime = true;
+            deadTime = samples[i].usec - startTime;
+        }
+        else if (foundDeadTime && samples[i].ticks >= limitPV)
+        {
+            Tp = samples[i].usec - startTime - deadTime;
+            break;
+        }
+    }
+
+    printf("\nCalculated PID Model Parameters\n");
+    printf("ΔPV=%f\n", deltaPV);
+    printf("ΔCO=%f\n", deltaCO);
+    printf("Kp=%f\n", Kp);
+    printf("Tp=%lu\n", Tp);
+    printf("ϴp=%lu\n", deadTime);
+    float Tc;
+    if (Tp > 8*deadTime)
+    {
+        Tc = Tp;
+    }
+    else
+    {
+        Tc = 8*deadTime;
+    }
+    float KcAggressive = (1.0f / Kp) * ((Tp + 0.5f*deadTime) / (Tc/10.0f + 0.5f*deadTime));
+    float KcModerate = (1.0f / Kp) * ((Tp + 0.5f*deadTime) / (Tc + 0.5f*deadTime));
+    float KcConservative = (1.0f / Kp) * ((Tp + 0.5f*deadTime) / (Tc*10.0f + 0.5f*deadTime));
+    float Ti = Tp + 0.5f*deadTime;
+    float Td = (Tp * (float)deadTime) / (2.0f*Tp + deadTime);
+    printf("Aggressive Kc=%f\n", KcAggressive);
+    printf("Moderate Kc=%f\n", KcModerate);
+    printf("Conservative Kc=%f\n", KcConservative);
+    printf("Ti=%f\n", Ti/1000000.0f);
+    printf("Td=%f\n", Td/1000000.0f);
+}
+
+static void hangOnError(const char* pErrorMessage)
+{
+    printf("%s\r\n", pErrorMessage);
+
+    g_OLED.clearScreen();
+    g_OLED.printf("%s", pErrorMessage);
+    g_OLED.refreshAndBlock();
+
+    g_drive.disable();
+    while (true)
+    {
+        // Loop here forever if a motor fault has been detected.
     }
 }
 
 static void verifyUICRBits()
 {
-    // UNDONE: Verify that the bits are clear when they are supposed to be as well.
-
     // Can't set UICR bits directly from this code as SoftDevice is already running for mriblue_boot.
     // Just verify that they have the correct results here instead. "make flash_softdevice" should be setup to set it
     // using nrfjprog.
@@ -345,6 +560,12 @@ static void verifyUICRBits()
        normal GPIOs. */
     #if defined (CONFIG_NFCT_PINS_AS_GPIOS)
         if ((NRF_UICR->NFCPINS & UICR_NFCPINS_PROTECT_Msk) == (UICR_NFCPINS_PROTECT_NFC << UICR_NFCPINS_PROTECT_Pos))
+        {
+            // Run "make flash_softdevice" to set correctly.
+            ASSERT ( false );
+        }
+    #else
+        if ((NRF_UICR->NFCPINS & UICR_NFCPINS_PROTECT_Msk) != (UICR_NFCPINS_PROTECT_NFC << UICR_NFCPINS_PROTECT_Pos))
         {
             // Run "make flash_softdevice" to set correctly.
             ASSERT ( false );
@@ -361,22 +582,14 @@ static void verifyUICRBits()
             // Run "make flash_softdevice" to set correctly.
             ASSERT ( false );
         }
+    #else
+        if (((NRF_UICR->PSELRESET[0] & UICR_PSELRESET_CONNECT_Msk) == (UICR_PSELRESET_CONNECT_Connected << UICR_PSELRESET_CONNECT_Pos)) ||
+            ((NRF_UICR->PSELRESET[1] & UICR_PSELRESET_CONNECT_Msk) == (UICR_PSELRESET_CONNECT_Connected << UICR_PSELRESET_CONNECT_Pos)))
+        {
+            // Run "make flash_softdevice" to set correctly.
+            ASSERT ( false );
+        }
     #endif
-}
-
-static void hangOnError(const char* pErrorMessage)
-{
-    printf("%s\r\n", pErrorMessage);
-
-    g_OLED.clearScreen();
-    g_OLED.printf("%s", pErrorMessage);
-    g_OLED.refresh();
-
-    g_drive.disable();
-    while (true)
-    {
-        // Loop here forever if a motor fault has been detected.
-    }
 }
 
 

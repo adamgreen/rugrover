@@ -32,7 +32,6 @@ class DifferentialDrive
                           uint8_t rightEnablePin, uint8_t rightPwm1Pin, uint8_t rightPwm2Pin,
                           uint8_t rightDiagPin, uint8_t rightOcmPin, bool rightReverse,
                           uint8_t rightEncoderAPin, uint8_t rightEncoderBPin,
-                          uint32_t encoderTicksPerRevolution,
                           float pidKc, float pidTi, float pidTd, uint32_t maxMotorPercentage,
                           SAADCScanner* pADC,
                           nrf_drv_pwm_t* pPWM, uint32_t frequency,
@@ -61,7 +60,7 @@ class DifferentialDrive
         struct DriveStats
         {
             FloatValues velocityRequested;
-            FloatValues velocityActual;
+            Values      velocityActual;
             Values      encoderCount;
             Values      power;
             Values      current_mA;
@@ -77,7 +76,6 @@ class DifferentialDrive
             initWasSuccessful &= m_leftEncoder.init();
             initWasSuccessful &= m_rightEncoder.init();
             initWasSuccessful &= m_motors.init();
-            m_prevSampleTime = micros();
 
             return initWasSuccessful;
         }
@@ -92,10 +90,10 @@ class DifferentialDrive
             m_motors.enable(false);
         }
 
-        void setVelocity(FloatValues& rpm)
+        void setVelocity(FloatValues& ticks)
         {
-            m_leftPID.updateSetPoint(rpm.left);
-            m_rightPID.updateSetPoint(rpm.right);
+            m_leftPID.updateSetPoint(ticks.left);
+            m_rightPID.updateSetPoint(ticks.right);
 
             updateMotors();
         }
@@ -113,11 +111,9 @@ class DifferentialDrive
     protected:
         void updateMotors();
 
-        uint32_t                    m_prevSampleTime;
-        float                       m_encoderTicksPerRevolution;
         Values                      m_prevTicks;
         Values                      m_maxCurrents_mA;
-        FloatValues                 m_prevVelocities;
+        Values                      m_prevVelocities;
         QuadratureDecoderHardware   m_leftEncoder;
         QuadratureDecoderSoftware   m_rightEncoder;
         PID                         m_leftPID;
