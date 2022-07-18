@@ -20,7 +20,7 @@
 #ifndef PID_H_
 #define PID_H_
 
-#include <assert.h>
+#include <nrf_assert.h>
 
 
 
@@ -124,7 +124,7 @@ public:
 
     void setTuningParameters(float Kc, float Ti, float Td)
     {
-        assert( Ti >= 0.0f && Td >= 0.0f && m_sampleTime > 0.0f );
+        ASSERT( Ti >= 0.0f && Td >= 0.0f && m_sampleTime > 0.0f );
         m_Ti = Ti;
         m_Td = Td;
         m_Kp = Kc;
