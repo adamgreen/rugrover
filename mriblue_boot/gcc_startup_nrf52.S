@@ -133,7 +133,7 @@ __isr_vector:
     .long   FPU_IRQHandler
 
 /* Saving some .text space by removing these reserved slots. */
-#ifdef UNDONE
+#if 0
     .long   0                           /*Reserved */
     .long   0                           /*Reserved */
     .long   0                           /*Reserved */
@@ -335,7 +335,7 @@ __isr_vector:
     .long   0                           /*Reserved */
     .long   0                           /*Reserved */
     .long   0                           /*Reserved */
-#endif // UNDONE
+#endif // 0
 
     .size __isr_vector, . - __isr_vector
 

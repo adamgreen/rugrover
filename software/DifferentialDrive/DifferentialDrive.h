@@ -37,37 +37,17 @@ class DifferentialDrive
                           nrf_drv_pwm_t* pPWM, uint32_t frequency,
                           uint32_t maxCurrent_mA);
 
-        enum Bits
-        {
-            NEITHER = 0,
-            LEFT = 1,
-            RIGHT = 2,
-            BOTH = 3
-        };
-
-        struct Values
-        {
-            int32_t left;
-            int32_t right;
-        };
-
-        struct FloatValues
-        {
-            float left;
-            float right;
-        };
-
         struct DriveStats
         {
-            FloatValues velocityRequested;
-            Values      velocityActual;
-            Values      encoderCount;
-            Values      power;
-            Values      current_mA;
-            Values      maxCurrent_mA;
-            Bits        faultDetected;
-            Bits        overcurrentDetected;
-            bool        autoMode;
+            DriveFloatValues    velocityRequested;
+            DriveValues         velocityActual;
+            DriveValues         encoderCount;
+            DriveValues         power;
+            DriveValues         current_mA;
+            DriveValues         maxCurrent_mA;
+            DriveBits           faultDetected;
+            DriveBits           overcurrentDetected;
+            bool                autoMode;
         };
 
         bool init()
@@ -90,7 +70,7 @@ class DifferentialDrive
             m_motors.enable(false);
         }
 
-        void setVelocity(FloatValues& ticks)
+        void setVelocity(DriveFloatValues& ticks)
         {
             m_leftPID.updateSetPoint(ticks.left);
             m_rightPID.updateSetPoint(ticks.right);
@@ -98,7 +78,7 @@ class DifferentialDrive
             updateMotors();
         }
 
-        void setPower(Values& percentage)
+        void setPower(DriveValues& percentage)
         {
             m_leftPID.setOutputManually(percentage.left);
             m_rightPID.setOutputManually(percentage.right);
@@ -111,9 +91,9 @@ class DifferentialDrive
     protected:
         void updateMotors();
 
-        Values                      m_prevTicks;
-        Values                      m_maxCurrents_mA;
-        Values                      m_prevVelocities;
+        DriveValues                 m_prevTicks;
+        DriveValues                 m_maxCurrents_mA;
+        DriveValues                 m_prevVelocities;
         QuadratureDecoderHardware   m_leftEncoder;
         QuadratureDecoderSoftware   m_rightEncoder;
         PID                         m_leftPID;

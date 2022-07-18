@@ -83,40 +83,19 @@ DifferentialDrive::DriveStats DifferentialDrive::getStats()
     stats.power.left = m_leftPID.getControlOutput();
     stats.power.right = m_rightPID.getControlOutput();
 
-    // UNDONE: Motor driver could return Values and Bits for current readings and faults.
-    DualTB9051FTGDrivers::CurrentReadings currents = m_motors.getCurrentReadings();
-    stats.current_mA.left = currents.leftCurrent_mA;
-    stats.current_mA.right = currents.rightCurrent_mA;
-
-    if (currents.leftCurrent_mA > m_maxCurrents_mA.left)
+    stats.current_mA = m_motors.getCurrentReadings();
+    if (stats.current_mA.left > m_maxCurrents_mA.left)
     {
-        m_maxCurrents_mA.left = currents.leftCurrent_mA;
+        m_maxCurrents_mA.left = stats.current_mA.left;
     }
-    if (currents.rightCurrent_mA > m_maxCurrents_mA.right)
+    if (stats.current_mA.right > m_maxCurrents_mA.right)
     {
-        m_maxCurrents_mA.right = currents.rightCurrent_mA;
+        m_maxCurrents_mA.right = stats.current_mA.right;
     }
     stats.maxCurrent_mA = m_maxCurrents_mA;
 
-    stats.faultDetected = NEITHER;
-    if (m_motors.hasLeftMotorEncounteredFault())
-    {
-        stats.faultDetected = (Bits)(stats.faultDetected | LEFT);
-    }
-    if (m_motors.hasRightMotorEncounteredFault())
-    {
-        stats.faultDetected = (Bits)(stats.faultDetected | RIGHT);
-    }
-
-    stats.overcurrentDetected = NEITHER;
-    if (m_motors.hasLeftMotorDetectedCurrentOverload())
-    {
-        stats.overcurrentDetected = (Bits)(stats.overcurrentDetected | LEFT);
-    }
-    if (m_motors.hasRightMotorDetectedCurrentOverload())
-    {
-        stats.overcurrentDetected = (Bits)(stats.overcurrentDetected | RIGHT);
-    }
+    stats.faultDetected = m_motors.haveMotorsEncounteredFault();
+    stats.overcurrentDetected = m_motors.haveMotorsDetectedCurrentOverload();
 
     // The way the code is written, if left motor is in auto PID mode then so is the right motor.
     stats.autoMode = m_leftPID.isAutomaticModeEnabled();

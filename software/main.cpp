@@ -306,17 +306,17 @@ static void testPidRoutine()
             velocityIter = 0;
         }
 
-        DifferentialDrive::FloatValues driveVelocity = { .left = (float)velocity, .right = (float)velocity };
+        DriveFloatValues driveVelocity = { .left = (float)velocity, .right = (float)velocity };
         g_drive.setVelocity(driveVelocity);
 
         DifferentialDrive::DriveStats stats = g_drive.getStats();
         // Check to see if either motor controller has detected a fault (over voltage, over current, over temp, etc).
-        if (stats.faultDetected != DifferentialDrive::NEITHER)
+        if (stats.faultDetected != DriveBits::NEITHER)
         {
             hangOnError("Motor fault detected!");
         }
         // Check for motor currents measured by ADC that are too high (software over current detection).
-        if (stats.overcurrentDetected != DifferentialDrive::NEITHER)
+        if (stats.overcurrentDetected != DriveBits::NEITHER)
         {
             hangOnError("Motor over current detected!");
         }
@@ -419,17 +419,17 @@ static void testPidCalibrateRoutine()
             power = bumpPower;
         }
 
-        DifferentialDrive::Values drivePower = { .left = power, .right = power };
+        DriveValues drivePower = { .left = power, .right = power };
         g_drive.setPower(drivePower);
 
         DifferentialDrive::DriveStats stats = g_drive.getStats();
         // Check to see if either motor controller has detected a fault (over voltage, over current, over temp, etc).
-        if (stats.faultDetected != DifferentialDrive::NEITHER)
+        if (stats.faultDetected != DriveBits::NEITHER)
         {
             hangOnError("Motor fault detected!");
         }
         // Check for motor currents measured by ADC that are too high (software over current detection).
-        if (stats.overcurrentDetected != DifferentialDrive::NEITHER)
+        if (stats.overcurrentDetected != DriveBits::NEITHER)
         {
             hangOnError("Motor over current detected!");
         }

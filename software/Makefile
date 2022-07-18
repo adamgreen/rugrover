@@ -253,8 +253,6 @@ flash_softdevice: erase
 	$(NRF_TOOL_PATH)/nrfjprog/nrfjprog -f nrf52  --memwr 0x1000120C --val 0xFFFFFFFE
 	$(NRF_TOOL_PATH)/nrfjprog/nrfjprog --reset -f nrf52
 
-# UNDONE: Add a rule to build and install mriblue_boot as well.
-
 erase:
 	$(NRF_TOOL_PATH)/nrfjprog/nrfjprog --eraseall -f nrf52
 

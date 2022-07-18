@@ -228,8 +228,6 @@ flash_softdevice: erase
 	$(NRF_TOOL_PATH)/nrfjprog/nrfjprog --program $(SDK_ROOT)/components/softdevice/s132/hex/s132_nrf52_3.0.0_softdevice.hex -f nrf52 --sectorerase
 	$(NRF_TOOL_PATH)/nrfjprog/nrfjprog --reset -f nrf52
 
-# UNDONE: Add a rule to build and install mriblue_boot as well.
-
 erase:
 	$(NRF_TOOL_PATH)/nrfjprog/nrfjprog --eraseall -f nrf52
 

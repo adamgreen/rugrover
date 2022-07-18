@@ -19,15 +19,32 @@
 #include <nrf_drv_pwm.h>
 #include "SAADCScanner/SAADCScanner.h"
 
+
+enum DriveBits
+{
+    NEITHER = 0,
+    LEFT = 1,
+    RIGHT = 2,
+    BOTH = 3
+};
+
+struct DriveValues
+{
+    int32_t left;
+    int32_t right;
+};
+
+struct DriveFloatValues
+{
+    float left;
+    float right;
+};
+
+
+
 class DualTB9051FTGDrivers
 {
     public:
-        struct CurrentReadings
-        {
-            int32_t leftCurrent_mA;
-            int32_t rightCurrent_mA;
-        };
-
         DualTB9051FTGDrivers(uint8_t leftEnablePin, uint8_t leftPwm1Pin, uint8_t leftPwm2Pin,
                              uint8_t leftDiagPin, uint8_t leftOcmPin, bool leftReverse,
                              uint8_t rightEnablePin, uint8_t rightPwm1Pin, uint8_t rightPwm2Pin,
@@ -51,39 +68,42 @@ class DualTB9051FTGDrivers
             m_rightMotor.enable(enable);
         }
 
-        CurrentReadings getCurrentReadings()
+        DriveValues getCurrentReadings()
         {
-            CurrentReadings currentReadings;
+            DriveValues currentReadings;
 
-            currentReadings.leftCurrent_mA = m_leftMotor.getCurrentReading();
-            currentReadings.rightCurrent_mA = m_rightMotor.getCurrentReading();
+            currentReadings.left = m_leftMotor.getCurrentReading();
+            currentReadings.right = m_rightMotor.getCurrentReading();
             return currentReadings;
         }
 
         // Motor driver faults are caused by Vcc over/undervoltage, Vbat undervoltage, over current, over temperature.
-        bool hasLeftMotorEncounteredFault()
+        DriveBits haveMotorsEncounteredFault()
         {
-            return m_leftMotor.hasEncounteredFault();
+            DriveBits fault = DriveBits::NEITHER;
+            if (m_leftMotor.hasEncounteredFault())
+            {
+                fault = (DriveBits)(fault | DriveBits::LEFT);
+            }
+            if (m_rightMotor.hasEncounteredFault())
+            {
+                fault = (DriveBits)(fault | DriveBits::RIGHT);
+            }
+            return fault;
         }
-        bool hasRightMotorEncounteredFault()
+
+        DriveBits haveMotorsDetectedCurrentOverload()
         {
-            return m_rightMotor.hasEncounteredFault();
-        }
-        bool hasEitherMotorEncounteredFault()
-        {
-            return hasLeftMotorEncounteredFault() || hasRightMotorEncounteredFault();
-        }
-        bool hasLeftMotorDetectedCurrentOverload()
-        {
-            return m_leftMotor.hasDetectedCurrentOverload();
-        }
-        bool hasRightMotorDetectedCurrentOverload()
-        {
-            return m_rightMotor.hasDetectedCurrentOverload();
-        }
-        bool hasEitherMotorDetectedCurrentOverload()
-        {
-            return hasLeftMotorDetectedCurrentOverload() || hasRightMotorDetectedCurrentOverload();
+            DriveBits overload = DriveBits::NEITHER;
+            if (m_leftMotor.hasDetectedCurrentOverload())
+            {
+                overload = (DriveBits)(overload | DriveBits::LEFT);
+            }
+            if (m_rightMotor.hasDetectedCurrentOverload())
+            {
+                overload = (DriveBits)(overload | DriveBits::RIGHT);
+            }
+            return overload;
         }
 
     protected:
