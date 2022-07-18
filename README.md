@@ -149,4 +149,5 @@ Once the mechanical and electronics were far enough along I could start writing 
   * The most recent motor current measurement (mA) taken for each wheel.
   * The maximum motor current measurement (mA) taken for each wheel so far.
   * Whether any motor faults or over-current events have been detected by the motor drivers.
+  * The mAh consumed by the motors since reset.
   * A flag to indicate whether the PID is running in manual or auto mode.

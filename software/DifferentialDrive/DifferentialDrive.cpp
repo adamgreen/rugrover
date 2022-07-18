@@ -23,15 +23,15 @@ DifferentialDrive::DifferentialDrive(uint8_t leftEnablePin, uint8_t leftPwm1Pin,
                     uint8_t rightEncoderAPin, uint8_t rightEncoderBPin,
                     float pidKc, float pidTi, float pidTd, int32_t maxMotorPercentage,
                     SAADCScanner* pADC,
-                    nrf_drv_pwm_t* pPWM, uint32_t frequency,
+                    nrf_drv_pwm_t* pPWM, uint32_t pwmFrequency, uint32_t pidFrequency,
                     uint32_t maxCurrent_mA)
 : m_leftEncoder(leftEncoderAPin, leftEncoderBPin),
   m_rightEncoder(rightEncoderAPin, rightEncoderBPin),
-  m_leftPID(pidKc, pidTi, pidTd, 0.0f, -(float)maxMotorPercentage, (float)maxMotorPercentage, 0.010f),
-  m_rightPID(pidKc, pidTi, pidTd, 0.0f, -(float)maxMotorPercentage, (float)maxMotorPercentage, 0.010f),
+  m_leftPID(pidKc, pidTi, pidTd, 0.0f, -(float)maxMotorPercentage, (float)maxMotorPercentage, 1.0f/pidFrequency),
+  m_rightPID(pidKc, pidTi, pidTd, 0.0f, -(float)maxMotorPercentage, (float)maxMotorPercentage, 1.0f/pidFrequency),
   m_motors(leftEnablePin, leftPwm1Pin, leftPwm2Pin, leftDiagPin, leftOcmPin, leftReverse,
            rightEnablePin, rightPwm1Pin, rightPwm2Pin, rightDiagPin, rightOcmPin, rightReverse,
-           pADC, pPWM, frequency, maxCurrent_mA)
+           pADC, pPWM, pwmFrequency, maxCurrent_mA)
 {
     memset(&m_prevTicks, 0, sizeof(m_prevTicks));
     memset(&m_maxCurrents_mA, 0, sizeof(m_maxCurrents_mA));
@@ -40,6 +40,8 @@ DifferentialDrive::DifferentialDrive(uint8_t leftEnablePin, uint8_t leftPwm1Pin,
     m_rightReverse = rightReverse;
     m_maxMotorLimits.min = -maxMotorPercentage;
     m_maxMotorLimits.max = maxMotorPercentage;
+    m_interval = 1.0f / pidFrequency;
+    m_capacityUsed_mAh = 0.0f;
 }
 
 void DifferentialDrive::updateMotors()
@@ -114,8 +116,12 @@ DifferentialDrive::DriveStats DifferentialDrive::getStats()
     }
     stats.maxCurrent_mA = m_maxCurrents_mA;
 
+    // Accumulate the mA used during each update period to estimate the battery capacity used so far.
+    m_capacityUsed_mAh += (stats.current_mA.left + stats.current_mA.right) * m_interval / (60.0f * 60.0f);
+
     stats.faultDetected = m_motors.haveMotorsEncounteredFault();
     stats.overcurrentDetected = m_motors.haveMotorsDetectedCurrentOverload();
+    stats.capacityUsed_mAh = m_capacityUsed_mAh;
 
     // The way the code is written, if left motor is in auto PID mode then so is the right motor.
     stats.autoMode = m_leftPID.isAutomaticModeEnabled();

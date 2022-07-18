@@ -34,7 +34,7 @@ class DifferentialDrive
                           uint8_t rightEncoderAPin, uint8_t rightEncoderBPin,
                           float pidKc, float pidTi, float pidTd, int32_t maxMotorPercentage,
                           SAADCScanner* pADC,
-                          nrf_drv_pwm_t* pPWM, uint32_t frequency,
+                          nrf_drv_pwm_t* pPWM, uint32_t pwmFrequency, uint32_t pidFrequency,
                           uint32_t maxCurrent_mA);
 
         struct DriveStats
@@ -45,6 +45,7 @@ class DifferentialDrive
             DriveValues         power;
             DriveValues         current_mA;
             DriveValues         maxCurrent_mA;
+            float               capacityUsed_mAh;
             DriveBits           faultDetected;
             DriveBits           overcurrentDetected;
             bool                autoMode;
@@ -96,6 +97,8 @@ class DifferentialDrive
         DriveValues                 m_maxCurrents_mA;
         DriveValues                 m_prevVelocities;
         DriveLimits                 m_maxMotorLimits;
+        float                       m_interval;
+        float                       m_capacityUsed_mAh;
         QuadratureDecoderHardware   m_leftEncoder;
         QuadratureDecoderSoftware   m_rightEncoder;
         PID                         m_leftPID;

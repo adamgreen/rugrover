@@ -86,7 +86,7 @@
 #define MOTOR_TICKS_PER_REV 1250
 
 // The frequency to be used for the motor PWM signal.
-#define MOTOR_FREQUENCY     20000
+#define MOTOR_PWM_FREQUENCY 20000
 
 // Don't allow motor current to go over 1.5A.
 #define MOTOR_MAX_CURRENT_mA    1500
@@ -156,7 +156,7 @@ static DifferentialDrive    g_drive(LMOTOR_EN_PIN, LMOTOR_PWM1_PIN, LMOTOR_PWM2_
                                      RMOTOR_ENCODER_A_PIN, RMOTOR_ENCODER_B_PIN,
                                      MOTOR_PID_Kc, MOTOR_PID_Ti, MOTOR_PID_Td, MOTOR_PID_MAX_PERCENT,
                                      &g_adc,
-                                     &g_PWM, MOTOR_FREQUENCY, MOTOR_MAX_CURRENT_mA);
+                                     &g_PWM, MOTOR_PWM_FREQUENCY, MOTOR_PID_FREQUENCY, MOTOR_MAX_CURRENT_mA);
 
 // If this global gets set to non-zero from debugger then enter debug menu.
 static int           g_dbg = 0;
@@ -276,6 +276,7 @@ static void testPidRoutine()
     g_OLED.printf(" Power:\n");
     g_OLED.printf("    mA:\n");
     g_OLED.printf("Max mA:\n");
+    g_OLED.printf("   mAh:\n");
 
     uint32_t prevTime = micros();
     uint32_t prevDumpTime = prevTime;
@@ -332,6 +333,8 @@ static void testPidRoutine()
             g_OLED.printf("%4ld,%4ld", stats.current_mA.left, stats.current_mA.right);
         g_OLED.setCursor(7*6, 4*8);
             g_OLED.printf("%4ld,%4ld\n", stats.maxCurrent_mA.left, stats.maxCurrent_mA.right);
+        g_OLED.setCursor(7*6, 5*8);
+            g_OLED.printf("%4ld\n", (int32_t)(stats.capacityUsed_mAh+0.5f));
         g_OLED.refresh();
 
         // Dump frame count once every 10 seconds.
