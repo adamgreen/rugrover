@@ -276,6 +276,36 @@ int32_t DualTB9051FTGDrivers::MotorDriver::getCurrentReading()
     return ADC_TO_mA((int32_t)reading.max);
 }
 
+DriveLimits DualTB9051FTGDrivers::MotorDriver::getPowerLimits()
+{
+    DriveLimits limits;
+
+    uint16_t currDutyCycle = m_currDutyCycle;
+    uint16_t currMagnitude = extractMagnitude(currDutyCycle);
+    bool     currPolarity = extractPolarity(currDutyCycle);
+    if (m_reverse)
+    {
+        currPolarity = !currPolarity;
+    }
+
+    if (currMagnitude == 0)
+    {
+        limits.min = -100;
+        limits.max = 100;
+    }
+    else if (currPolarity)
+    {
+        limits.min = -100;
+        limits.max = 0;
+    }
+    else
+    {
+        limits.min = 0;
+        limits.max = 100;
+    }
+    return limits;
+}
+
 void DualTB9051FTGDrivers::MotorDriver::notifyLimitExceeded(bool lowLimitExceeded, bool highLimitExceeded)
 {
     ASSERT ( !lowLimitExceeded && highLimitExceeded );

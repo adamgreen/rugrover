@@ -34,6 +34,18 @@ struct DriveValues
     int32_t right;
 };
 
+struct DriveLimits
+{
+    int32_t min;
+    int32_t max;
+};
+
+struct DriveLimitValues
+{
+    DriveLimits left;
+    DriveLimits right;
+};
+
 struct DriveFloatValues
 {
     float left;
@@ -106,6 +118,14 @@ class DualTB9051FTGDrivers
             return overload;
         }
 
+        DriveLimitValues getPowerLimits()
+        {
+            DriveLimitValues limits;
+            limits.left = m_leftMotor.getPowerLimits();
+            limits.right = m_rightMotor.getPowerLimits();
+            return limits;
+        }
+
     protected:
         class MotorDriver : public ISAADCScannerNotification
         {
@@ -134,6 +154,7 @@ class DualTB9051FTGDrivers
                 bool hasEncounteredFault();
                 bool hasDetectedCurrentOverload();
                 int32_t getCurrentReading();
+                DriveLimits getPowerLimits();
 
             protected:
                 virtual void notifyLimitExceeded(bool lowLimitExceeded, bool highLimitExceeded);

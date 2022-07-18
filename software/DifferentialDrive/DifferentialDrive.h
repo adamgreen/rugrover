@@ -32,7 +32,7 @@ class DifferentialDrive
                           uint8_t rightEnablePin, uint8_t rightPwm1Pin, uint8_t rightPwm2Pin,
                           uint8_t rightDiagPin, uint8_t rightOcmPin, bool rightReverse,
                           uint8_t rightEncoderAPin, uint8_t rightEncoderBPin,
-                          float pidKc, float pidTi, float pidTd, uint32_t maxMotorPercentage,
+                          float pidKc, float pidTi, float pidTd, int32_t maxMotorPercentage,
                           SAADCScanner* pADC,
                           nrf_drv_pwm_t* pPWM, uint32_t frequency,
                           uint32_t maxCurrent_mA);
@@ -90,10 +90,12 @@ class DifferentialDrive
 
     protected:
         void updateMotors();
+        void constrainLimits(DriveLimitValues& limits);
 
         DriveValues                 m_prevTicks;
         DriveValues                 m_maxCurrents_mA;
         DriveValues                 m_prevVelocities;
+        DriveLimits                 m_maxMotorLimits;
         QuadratureDecoderHardware   m_leftEncoder;
         QuadratureDecoderSoftware   m_rightEncoder;
         PID                         m_leftPID;

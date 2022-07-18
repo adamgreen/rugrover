@@ -21,7 +21,7 @@ DifferentialDrive::DifferentialDrive(uint8_t leftEnablePin, uint8_t leftPwm1Pin,
                     uint8_t rightEnablePin, uint8_t rightPwm1Pin, uint8_t rightPwm2Pin,
                     uint8_t rightDiagPin, uint8_t rightOcmPin, bool rightReverse,
                     uint8_t rightEncoderAPin, uint8_t rightEncoderBPin,
-                    float pidKc, float pidTi, float pidTd, uint32_t maxMotorPercentage,
+                    float pidKc, float pidTi, float pidTd, int32_t maxMotorPercentage,
                     SAADCScanner* pADC,
                     nrf_drv_pwm_t* pPWM, uint32_t frequency,
                     uint32_t maxCurrent_mA)
@@ -38,6 +38,8 @@ DifferentialDrive::DifferentialDrive(uint8_t leftEnablePin, uint8_t leftPwm1Pin,
     memset(&m_prevVelocities, 0, sizeof(m_prevVelocities));
     m_leftReverse = leftReverse;
     m_rightReverse = rightReverse;
+    m_maxMotorLimits.min = -maxMotorPercentage;
+    m_maxMotorLimits.max = maxMotorPercentage;
 }
 
 void DifferentialDrive::updateMotors()
@@ -58,9 +60,15 @@ void DifferentialDrive::updateMotors()
     int32_t rightDiff = rightTicks - m_prevTicks.right;
     m_prevTicks.left = leftTicks;
     m_prevTicks.right = rightTicks;
-
     float leftVelocity = leftDiff;
     float rightVelocity = rightDiff;
+
+    // The TB9051FTG Motor Driver doesn't allow immediate switching from one direction to another. If I switch to
+    // another motor driver then I can remove this.
+    DriveLimitValues limits = m_motors.getPowerLimits();
+    constrainLimits(limits);
+    m_leftPID.setControlLimits(limits.left.min, limits.left.max);
+    m_rightPID.setControlLimits(limits.right.min, limits.right.max);
 
     int32_t leftPower = (int32_t)(m_leftPID.compute(leftVelocity) + 0.5f);
     int32_t rightPower = (int32_t)(m_rightPID.compute(rightVelocity) + 0.5f);
@@ -68,6 +76,18 @@ void DifferentialDrive::updateMotors()
 
     m_prevVelocities.left = leftVelocity;
     m_prevVelocities.right = rightVelocity;
+}
+
+void DifferentialDrive::constrainLimits(DriveLimitValues& limits)
+{
+    if (limits.left.min < m_maxMotorLimits.min)
+        limits.left.min = m_maxMotorLimits.min;
+    if (limits.left.max > m_maxMotorLimits.max)
+        limits.left.max = m_maxMotorLimits.max;
+    if (limits.right.min < m_maxMotorLimits.min)
+        limits.right.min = m_maxMotorLimits.min;
+    if (limits.right.max > m_maxMotorLimits.max)
+        limits.right.max = m_maxMotorLimits.max;
 }
 
 DifferentialDrive::DriveStats DifferentialDrive::getStats()
