@@ -217,7 +217,6 @@ void DualTB9051FTGDrivers::MotorDriver::enable(bool enable)
     }
     else
     {
-        setPower(0);
         nrf_gpio_pin_clear(m_enablePin);
     }
     m_enabled = enable;
