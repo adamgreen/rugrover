@@ -49,7 +49,6 @@ SRC_FILES += \
   $(SDK_ROOT)/components/libraries/simple_timer/app_simple_timer.c \
   $(SDK_ROOT)/components/drivers_nrf/qdec/nrf_drv_qdec.c \
   $(SDK_ROOT)/components/drivers_nrf/pwm/nrf_drv_pwm.c \
-  $(SDK_ROOT)/components/drivers_nrf/saadc/nrf_drv_saadc.c \
   $(SDK_ROOT)/components/drivers_nrf/hal/nrf_saadc.c \
 
 # Add in MRI debug monitor to get the newlib stubs contained within.
@@ -206,8 +205,10 @@ LDFLAGS += -mfloat-abi=hard -mfpu=fpv4-sp-d16
 # let linker to dump unused sections
 LDFLAGS += -Wl,--gc-sections
 # use newlib in nano version
-LDFLAGS += --specs=nano.specs -lc -lnosys
-LDFLAGS += -Wl,--allow-multiple-definition
+LDFLAGS += --specs=nano.specs
+# Uncomment this if need to output floats via printf() calls.
+LDFLAGS += -u _printf_float
+SYSLIBS += -lm -lc -lnosys
 
 .PHONY: $(TARGETS) default all clean help flash flash_softdevice sdk mri
 

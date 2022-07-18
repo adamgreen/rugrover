@@ -125,9 +125,6 @@ INC_FOLDERS += \
   $(SDK_ROOT)/components/libraries/log/src \
   $(SDK_ROOT)/components/libraries/simple_timer \
 
-# Libraries common to all targets
-LIB_FILES +=
-
 # C flags common to all targets
 CFLAGS += -D__HEAP_SIZE=0
 CFLAGS += -DDEBUG_NRF_USER
@@ -193,8 +190,8 @@ LDFLAGS += -mfloat-abi=hard -mfpu=fpv4-sp-d16
 # let linker to dump unused sections
 LDFLAGS += -Wl,--gc-sections
 # use newlib in nano version
-LDFLAGS += --specs=nano.specs -lc -lnosys
-LDFLAGS += -Wl,--allow-multiple-definition
+LDFLAGS += --specs=nano.specs
+SYSLIBS += -lc -lnosys -lm
 
 .PHONY: $(TARGETS) default all clean help flash flash_softdevice sdk mri
 

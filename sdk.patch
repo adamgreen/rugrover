@@ -218,7 +218,7 @@ diff -Naurb nrfSDK2/components/softdevice/s130/headers/nrf_svc.h nrfSDK/componen
  #endif
 diff -Naurb nrfSDK2/components/toolchain/gcc/Makefile.common nrfSDK/components/toolchain/gcc/Makefile.common
 --- nrfSDK2/components/toolchain/gcc/Makefile.common	2017-05-05 13:10:30.000000000 -0700
-+++ nrfSDK/components/toolchain/gcc/Makefile.common	2022-06-29 17:54:33.000000000 -0700
++++ nrfSDK/components/toolchain/gcc/Makefile.common	2022-07-16 19:09:28.000000000 -0700
 @@ -108,7 +108,8 @@
  define define_target
  $(eval OUTPUT_FILE := $(OUTPUT_DIRECTORY)/$(strip $(1))) \
@@ -237,7 +237,8 @@ diff -Naurb nrfSDK2/components/toolchain/gcc/Makefile.common nrfSDK/components/t
 +	$(eval FILE_LIST := $^)
  	$(NO_ECHO)$(DUMP_FILE_LIST) > $(@:.out=.in)
  	@echo Linking target: $@
- 	$(NO_ECHO)$(CC) -Wl,-Map=$(@:.out=.map) $(LDFLAGS) @$(@:.out=.in) -lm -o $@
+-	$(NO_ECHO)$(CC) -Wl,-Map=$(@:.out=.map) $(LDFLAGS) @$(@:.out=.in) -lm -o $@
++	$(NO_ECHO)$(CC) -Wl,-Map=$(@:.out=.map) $(LDFLAGS) @$(@:.out=.in) $(SYSLIBS) -o $@
 +	$(NO_ECHO)$(OBJDUMP) -d -f -M reg-names-std --demangle $@ > $(@:.out=.disasm)
  	-@echo ''
  	$(NO_ECHO)$(SIZE) $@
