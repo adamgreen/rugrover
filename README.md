@@ -140,3 +140,13 @@ Once the mechanical and electronics were far enough along I could start writing 
   * The application can also specify trigger limits for the minimum and/or maximum analog values to be expected. Readings outside of these limits will be tracked in the returned structure and can also trigger a callback to a caller provided ISAADCScannerNotification interface.
   * This driver is currently only used to monitor the motor currents for each wheel. In the future it can be used to monitor the light levels detected by the 2 photocells.
 * [DualTB9051FTGDrivers](software/DualTB9051FTGDrivers/DualTB9051FTGDrivers.h): This driver allows for the control of 2 Toshiba TB9051FTG H-bridge chips, one for each motor on the robot. It uses 4 channels of the nRF52's PWM peripheral to control the torque and speed of the motors with minimal CPU intervention.
+* [GlobalTimer](software/GlobalTimer/GlobalTimer.h): Uses TIMER2 to implement an Arduino like ```micros()``` API to return a 32-bit value indicating the number of microseconds since reset.
+* [PID](software/PID/PID.h): Header only class that implements a PID (proportional, integral, derivative) algorithm. It is inspired by [Brett Beauregard's Arduino PID Library](https://github.com/br3ttb/Arduino-PID-Library/) and the [PID e-book available on controlguru](http://www.controlguru.com).
+* [DifferentialDrive](software/DifferentialDrive/DifferentialDrive.h): This driver implements closed loop control of RugRover's differential drive. It is built on top of the **DualTB9051FTGDrivers** and Quadrature Decoder libraries. It also has a getStats() method which exposes internal state of the motors, encoders, and PID algorithm to the user:
+  * The requested velocity and the actual measured velocity of each wheel.
+  * The running total of encoder ticks for each wheel.
+  * The motor power (-100% to 100%) being used for each wheel.
+  * The most recent motor current measurement (mA) taken for each wheel.
+  * The maximum motor current measurement (mA) taken for each wheel so far.
+  * Whether any motor faults or over-current events have been detected by the motor drivers.
+  * A flag to indicate whether the PID is running in manual or auto mode.
