@@ -30,7 +30,7 @@ Having recently reread the book, I thought it would be fun to build a comparable
 
 
 ## Reading List
-In addition to reading ["Mobile Robots: Inspiration to Implementation" by Joseph L. Jones and Anita M. Flynn](https://www.amazon.com/Mobile-Robots-Inspiration-Implementation-Second/dp/B0087P7X2S) I have also read a few other books to learn more about robot design, building, and programming:
+In addition to reading ["Mobile Robots: Inspiration to Implementation" by Joseph L. Jones and Anita M. Flynn](https://www.amazon.com/Mobile-Robots-Inspiration-Implementation-Second/dp/B0087P7X2S) I have also read a few other books to learn more about robot design, building, and programming while working on this project:
 
 <a href="https://www.amazon.com/Navigating-Mobile-Robots-Systems-Techniques/dp/156881058X"><img src="https://images-na.ssl-images-amazon.com/images/I/41VLoNv7q8L._SX398_BO1,204,203,200_.jpg" alt="Navigating Mobile Robots: Systems and Techniques" width="128"></a>
 
