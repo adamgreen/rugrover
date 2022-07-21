@@ -272,6 +272,7 @@ int32_t DualTB9051FTGDrivers::MotorDriver::getCurrentReading()
         return 0;
     }
     SAADCScanner::Channel::Reading reading = m_pAdcChannel->read();
+    ASSERT ( reading.count > 0 );
     return ADC_TO_mA((int32_t)reading.max);
 }
 
