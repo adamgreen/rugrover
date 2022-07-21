@@ -29,6 +29,14 @@ Having recently reread the book, I thought it would be fun to build a comparable
 * Use KiCAD to design a custom PCB for this bot. The first iteration of the PCB will be a shield for a nRF52 development kit that I already own. Later I can design a new PCB that uses a small nRF52 module, like those [offered by Adafruit](https://www.adafruit.com/product/4077).
 
 
+## Reading List
+In addition to reading ["Mobile Robots: Inspiration to Implementation" by Joseph L. Jones and Anita M. Flynn](https://www.amazon.com/Mobile-Robots-Inspiration-Implementation-Second/dp/B0087P7X2S) I have also read a few other books to learn more about robot design, building, and programming:
+
+<a href="https://www.amazon.com/Navigating-Mobile-Robots-Systems-Techniques/dp/156881058X"><img src="https://images-na.ssl-images-amazon.com/images/I/41VLoNv7q8L._SX398_BO1,204,203,200_.jpg" alt="Navigating Mobile Robots: Systems and Techniques" width="128"></a>
+
+**Note:** A free PDF version of the **Navigating Mobile Robots book by Borenstein et al** shown above is also available [here](http://www-personal.umich.edu/~johannb/Papers/pos96rep.pdf).
+
+
 ## Bill of Materials
 | Quantity | Part Name / Link |
 |---|-|
