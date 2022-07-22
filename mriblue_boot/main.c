@@ -1193,7 +1193,7 @@ static void debugCrashDump(void)
 
 static void sendAckToGdbIncaseCrashOccurredBeforeSendingIt(void)
 {
-    mriPlatform_CommSendChar('+');
+    Platform_CommSendChar('+');
 }
 
 static void transferControlToApplicationToDebug(void)
@@ -1216,7 +1216,7 @@ static void transferControlToApplicationToDebug(void)
         // Set the initial breakpoint at the beginning of the app's Reset_Handler, allowing the developer to set breakpoints
         // of interest. This is early enough to set breakpoints in global constructors and is the only address this
         // bootloader really knows about in the application. It doesn't know the location of main() for example.
-        mriCore_SetTempBreakpoint(resetHandler, enteredResetHandlerCallback, NULL);
+        SetTempBreakpoint(resetHandler, enteredResetHandlerCallback, NULL);
     }
     // Jump to the application's Reset_Handler.
     void (*pResetHandler)(void) = (void (*)(void))resetHandler;
@@ -1282,7 +1282,7 @@ void app_error_fault_handler(uint32_t id, uint32_t pc, uint32_t info)
 
 
 // *********************************************************************************************************************
-//  Implementation of the mriPlatform_Comm* functions.
+//  Implementation of the Platform_Comm* functions.
 //  The MRI debug monitor library calls these routines to communicate with GDB. The implementations below use the BLE
 //  code from above to communicate with GDB wirelessly.
 // *********************************************************************************************************************
@@ -1293,20 +1293,20 @@ void mriNRF52Uart_Init(void* pParameterTokens, uint32_t debugMonPriorityLevel)
     // the mri library version gets linked in.
 }
 
-uint32_t mriPlatform_CommHasReceiveData(void)
+uint32_t Platform_CommHasReceiveData(void)
 {
     return !CircularQueue_IsEmpty(&g_bleToMriQueue);
 }
 
 
-uint32_t  mriPlatform_CommHasTransmitCompleted(void)
+uint32_t  Platform_CommHasTransmitCompleted(void)
 {
     return (CircularQueue_IsEmpty(&g_mriToBleQueue) && g_packetsInFlight == 0);
 }
 
 
 static void waitToReceiveData(void);
-int mriPlatform_CommReceiveChar(void)
+int Platform_CommReceiveChar(void)
 {
     if (g_fakeAckCount > 0)
     {
@@ -1331,7 +1331,7 @@ static void waitToReceiveData(void)
 }
 
 static void waitForSpaceInQueue();
-void mriPlatform_CommSendChar(int Character)
+void Platform_CommSendChar(int Character)
 {
     waitForSpaceInQueue();
 
@@ -1350,7 +1350,7 @@ static void waitForSpaceInQueue()
 
 
 // *********************************************************************************************************************
-//  Implementation of the mriPlatform_HandleGDBComand() function.
+//  Implementation of the Platform_HandleGDBComand() function.
 //  The MRI debug monitor library calls this routine to allow us to handle GDB remote commands that aren't already
 //  handled by the MRI core code. For mriblue, we are going to add in the ability to handle the commands related to
 //  programming the FLASH. This will add support for GDB's "load" command.
@@ -1379,7 +1379,7 @@ static uint32_t handleMonitorHelpCommand(void);
     Command Format: vFlashSSS
     Where SSS is a variable length string indicating which Flash command is being sent to the stub.
 */
-uint32_t  mriPlatform_HandleGDBCommand(Buffer* pBuffer)
+uint32_t  Platform_HandleGDBCommand(Buffer* pBuffer)
 {
     const char   vFlashEraseCommand[] = "vFlashErase";
     const char   vFlashWriteCommand[] = "vFlashWrite";
@@ -1764,7 +1764,7 @@ void Platform_HandleFaultFromHighPriorityCode(void)
     resetMriFlags();
 
     // Return and let fault handler launch MRI's main exception handler. Once this has setup the context properly, we
-    // will stop in mriPlatform_EnteringDebugger() to generate the crash dump in FLASH and reboot the uC.
+    // will stop in Platform_EnteringDebugger() to generate the crash dump in FLASH and reboot the uC.
 }
 
 static void resetMriFlags(void)
@@ -1839,7 +1839,7 @@ static void copyContextToFlash(void)
     dumpContext.bfar = mriCortexMState.bfar;
     for (size_t i = 0 ; i < sizeof(dumpContext.registers)/sizeof(dumpContext.registers[0]) ; i++)
     {
-        dumpContext.registers[i] = mriContext_Get(&mriCortexMState.context, i);
+        dumpContext.registers[i] = Context_Get(&mriCortexMState.context, i);
     }
     dumpContext.magic = CRASH_DUMP_CONTEXT_MAGIC;
 
@@ -1876,7 +1876,7 @@ static void copyContextFromFlash(ContextSection* pContextSection)
     mriCortexMState.bfar = pDumpContext->bfar;
 
     memcpy(pContextSection->pValues, pDumpContext->registers, pContextSection->count * sizeof(uint32_t));
-    mriContext_Init(&mriCortexMState.context, pContextSection, 1);
+    Context_Init(&mriCortexMState.context, pContextSection, 1);
 }
 
 static void restoreReasonCode(void)
@@ -2001,7 +2001,7 @@ void __wrap_mriPlatform_ResetDevice(void)
 {
     void __real_mriPlatform_ResetDevice(void);
 
-    if (g_crashState == CRASH_STATE_DEBUGGING && mriCore_WasResetOnNextContinueRequested() && g_singleStepRequested)
+    if (g_crashState == CRASH_STATE_DEBUGGING && WasResetOnNextContinueRequested() && g_singleStepRequested)
     {
         // Instead of resetting the device right now, just simulate the single step as GDB expects instead.
         simulateSingleStep();
@@ -2151,24 +2151,15 @@ static int handleNewlibSemihostWriteRequest(PlatformSemihostParameters* pSemihos
 
 static int writeToGdbConsoleWithNoWait(const TransferParameters* pParameters)
 {
-    char buffer[64+1];
-    const char* pSrc = (const char*)pParameters->bufferAddress;
+    const char* pBuffer = (const char*)pParameters->bufferAddress;
     size_t length = pParameters->bufferSize;
-    while (length > 0)
-    {
-        size_t bytesToCopy = (length > sizeof(buffer)-1) ? sizeof(buffer)-1 : length;
-        memcpy(buffer, pSrc, bytesToCopy);
-        buffer[bytesToCopy] = '\0';
-        pSrc += bytesToCopy;
-        length -= bytesToCopy;
 
-        nrf_atomic_u32_add(&g_ignoreAckCount, 1);
-        nrf_atomic_u32_add(&g_fakeAckCount, 1);
-        mriGdbConsole_WriteString(buffer);
-    }
+    nrf_atomic_u32_add(&g_ignoreAckCount, 1);
+    nrf_atomic_u32_add(&g_fakeAckCount, 1);
+    WriteSizedStringToGdbConsole(pBuffer, length);
 
-    mriCore_SetSemihostReturnValues(pParameters->bufferSize, 0);
-    mriCore_FlagSemihostCallAsHandled();
+    SetSemihostReturnValues(length, 0);
+    FlagSemihostCallAsHandled();
 
     if (g_controlC)
     {
