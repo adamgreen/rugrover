@@ -42,6 +42,7 @@
 #include <core/core.h>
 #include <core/gdb_console.h>
 #include <core/signal.h>
+#include <core/semihost.h>
 #include <semihost/newlib/newlib_stubs.h>
 #include "app.h"
 #include "CircularQueue.h"
@@ -2099,73 +2100,28 @@ void  __wrap_mriPlatform_ClearHardwareWatchpoint(uint32_t address, uint32_t size
 
 
 // *********************************************************************************************************************
-//  Wrap of the mriSemihost_HandleNewlibSemihostRequest function associated with newlib Standard C Library semihosting.
-//  This wrap is used to provide a faster but less reliable way of writing to stdout.
+//  Wrap of the mriSemihost_WriteToFileOrConsole function to provide a faster but less reliable way of writing to stdout.
 // *********************************************************************************************************************
-static uint16_t getFirstHalfWordOfCurrentInstruction(void);
-static uint16_t throwingMemRead16(uint32_t address);
-static int handleNewlibSemihostWriteRequest(PlatformSemihostParameters* pSemihostParameters);
-static int writeToGdbConsoleWithNoWait(const TransferParameters* pParameters);
-int __wrap_mriSemihost_HandleNewlibSemihostRequest(PlatformSemihostParameters* pSemihostParameters)
+int __wrap_mriSemihost_WriteToFileOrConsole(const TransferParameters* pParameters)
 {
-    int __real_mriSemihost_HandleNewlibSemihostRequest(PlatformSemihostParameters* pSemihostParameters);
+    int __real_mriSemihost_WriteToFileOrConsole(const TransferParameters* pParameters);
 
-    uint16_t semihostOperation = getFirstHalfWordOfCurrentInstruction() & 0x00FF;
-
-    switch (semihostOperation)
+    const uint32_t STDOUT_FILE_NO = 1;
+    if (pParameters->fileDescriptor != STDOUT_FILE_NO)
     {
-        case MRI_NEWLIB_SEMIHOST_WRITE:
-            return handleNewlibSemihostWriteRequest(pSemihostParameters);
-        default:
-            return __real_mriSemihost_HandleNewlibSemihostRequest(pSemihostParameters);
+        return __real_mriSemihost_WriteToFileOrConsole(pParameters);
     }
-}
 
-static uint16_t getFirstHalfWordOfCurrentInstruction(void)
-{
-    return throwingMemRead16(Platform_GetProgramCounter());
-}
-
-static uint16_t throwingMemRead16(uint32_t address)
-{
-    uint16_t instructionWord = Platform_MemRead16((const uint16_t*)address);
-    if (Platform_WasMemoryFaultEncountered())
-        __throw_and_return(memFaultException, 0);
-    return instructionWord;
-}
-
-static int handleNewlibSemihostWriteRequest(PlatformSemihostParameters* pSemihostParameters)
-{
-    const uint32_t     STDOUT_FILE_NO = 1;
-    TransferParameters parameters;
-
-    parameters.fileDescriptor = pSemihostParameters->parameter1;
-    parameters.bufferAddress = pSemihostParameters->parameter2;
-    parameters.bufferSize = pSemihostParameters->parameter3;
-    if (parameters.fileDescriptor == STDOUT_FILE_NO)
-    {
-        return writeToGdbConsoleWithNoWait(&parameters);
-    }
-    return IssueGdbFileWriteRequest(&parameters);
-}
-
-static int writeToGdbConsoleWithNoWait(const TransferParameters* pParameters)
-{
-    const char* pBuffer = (const char*)pParameters->bufferAddress;
-    size_t length = pParameters->bufferSize;
-
+    // Do extra work when writing to STDOUT so that MRI won't block waiting for ACK back from GDB.
     nrf_atomic_u32_add(&g_ignoreAckCount, 1);
     nrf_atomic_u32_add(&g_fakeAckCount, 1);
-    WriteSizedStringToGdbConsole(pBuffer, length);
-
-    SetSemihostReturnValues(length, 0);
-    FlagSemihostCallAsHandled();
-
+    int result = __real_mriSemihost_WriteToFileOrConsole(pParameters);
     if (g_controlC)
     {
         g_controlC = false;
         SetSignalValue(SIGINT);
         return 0;
     }
-    return 1;
+
+    return result;
 }
