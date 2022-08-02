@@ -20,6 +20,7 @@
 #ifndef PID_H_
 #define PID_H_
 
+#include <math.h>
 #include <nrf_assert.h>
 
 
@@ -166,6 +167,34 @@ protected:
     float                       m_processLast;
     bool                        m_isAuto;
     bool                        m_usesIntegral;
+};
+
+
+static inline float constrainAngle(float angle)
+{
+    if (angle < -(float)M_PI)
+        return angle + 2.0f*(float)M_PI;
+    else if (angle > (float)M_PI)
+        return angle - 2.0f*(float)M_PI;
+    else
+        return angle;
+}
+
+
+class AnglePID : public PID
+{
+    public:
+        AnglePID(float Kc, float Ti, float Td,
+                float controlOutputBias,
+                float controlMin, float controlMax,
+                float sampleTime) : PID(Kc, Ti, Td, controlOutputBias, controlMin, controlMax, sampleTime)
+        {
+        }
+
+        virtual float constrain(float error)
+        {
+            return constrainAngle(error);
+        }
 };
 
 #endif // PID_H_

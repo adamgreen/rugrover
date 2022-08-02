@@ -42,6 +42,8 @@ DifferentialDrive::DifferentialDrive(uint8_t leftEnablePin, uint8_t leftPwm1Pin,
     m_maxMotorLimits.max = maxMotorPercentage;
     m_interval = 1.0f / pidFrequency;
     m_capacityUsed_mAh = 0.0f;
+    m_initWasSuccessful = false;
+    m_isEnabled = false;
 }
 
 void DifferentialDrive::updateMotors()
@@ -100,8 +102,7 @@ DifferentialDrive::DriveStats DifferentialDrive::getStats()
     stats.velocityRequested.right = m_rightPID.getSetPoint();
     stats.velocityActual = m_prevVelocities;
 
-    stats.encoderCount.left = m_leftEncoder.getCount();
-    stats.encoderCount.right = m_rightEncoder.getCount();
+    stats.encoderCount = m_prevTicks;
     stats.power.left = m_leftPID.getControlOutput();
     stats.power.right = m_rightPID.getControlOutput();
 

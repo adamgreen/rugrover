@@ -24,6 +24,7 @@ SRC_FILES += \
   $(PROJ_DIR)/SAADCScanner/SAADCScanner.cpp \
   $(PROJ_DIR)/GlobalTimer/GlobalTimer.cpp \
   $(PROJ_DIR)/DifferentialDrive/DifferentialDrive.cpp \
+  $(PROJ_DIR)/Navigate/Navigate.cpp \
   $(SDK_ROOT)/components/libraries/log/src/nrf_log_backend_serial.c \
   $(SDK_ROOT)/components/libraries/log/src/nrf_log_frontend.c \
   $(SDK_ROOT)/components/libraries/util/app_error.c \

@@ -53,22 +53,38 @@ class DifferentialDrive
 
         bool init()
         {
-            bool initWasSuccessful = true;
-            initWasSuccessful &= m_leftEncoder.init();
-            initWasSuccessful &= m_rightEncoder.init();
-            initWasSuccessful &= m_motors.init();
+            if (m_initWasSuccessful)
+            {
+                return true;
+            }
+            m_initWasSuccessful = true;
+            m_initWasSuccessful &= m_leftEncoder.init();
+            m_initWasSuccessful &= m_rightEncoder.init();
+            m_initWasSuccessful &= m_motors.init();
 
-            return initWasSuccessful;
+            return m_initWasSuccessful;
+        }
+
+        bool isInit()
+        {
+            return m_initWasSuccessful;
         }
 
         void enable()
         {
             m_motors.enable(true);
+            m_isEnabled = true;
         }
 
         void disable()
         {
             m_motors.enable(false);
+            m_isEnabled = false;
+        }
+
+        bool isEnabled()
+        {
+            return m_isEnabled;
         }
 
         void setVelocity(DriveFloatValues& ticks)
@@ -106,6 +122,8 @@ class DifferentialDrive
         DualTB9051FTGDrivers        m_motors;
         bool                        m_leftReverse;
         bool                        m_rightReverse;
+        bool                        m_initWasSuccessful;
+        bool                        m_isEnabled;
 };
 
 #endif // DIFFERENTIAL_DRIVE_H_
