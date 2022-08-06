@@ -151,6 +151,10 @@
 #define DISTANCE_PID_Ti            0.910261f
 #define DISTANCE_PID_Td            0.0f
 
+// Thresholds used in the Navigate module to determine when close enough to a waypoint.
+#define THRESHOLD_DISTANCE      10.0f
+#define THRESHOLD_ANGLE         (10.0f * DEGREE_TO_RADIAN)
+
 // PID Frequency in Hz.
 #define MOTOR_PID_FREQUENCY     100
 
@@ -208,6 +212,7 @@ static DifferentialDrive    g_drive(LMOTOR_EN_PIN, LMOTOR_PWM1_PIN, LMOTOR_PWM2_
 // Navigation module.
 static Navigate             g_navigate(&g_drive, MOTOR_PID_FREQUENCY, MOTOR_TICKS_PER_REV,
                                        LEFT_WHEEL_DIAMETER, RIGHT_WHEEL_DIAMETER, WHEEL_BASELINE,
+                                       THRESHOLD_DISTANCE, THRESHOLD_ANGLE,
                                        HEADING_PID_Kc, HEADING_PID_Ti, HEADING_PID_Td,
                                        DISTANCE_PID_Kc, DISTANCE_PID_Ti, DISTANCE_PID_Td);
 
@@ -347,7 +352,8 @@ static void testNavigateRoutine()
         wheelbase = getFloatOption("Wheel base in mm", wheelbase);
 
         // Enter main action loop.
-        const float    runSpeed_mps = 0.25f;
+        const float    driveSpeed_mps = 0.25f;
+        const float    turnSpeed_mps = 0.25f;
         const uint32_t delayms = 1000 / MOTOR_PID_FREQUENCY;
         const uint32_t delay_us = delayms * 1000;
         uint32_t count = 0;
@@ -368,7 +374,7 @@ static void testNavigateRoutine()
         g_navigate.reset();
         g_navigate.setParameters(leftWheelDiameter, rightWheelDiameter, wheelbase);
         g_navigate.setWaypoints(waypoints, ARRAY_SIZE(waypoints));
-        g_navigate.setWaypointVelocity(runSpeed_mps);
+        g_navigate.setWaypointVelocities(driveSpeed_mps, turnSpeed_mps);
         g_drive.enable();
         uint32_t prevTime = micros();
         uint32_t prevDumpTime = micros();

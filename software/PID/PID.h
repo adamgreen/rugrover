@@ -35,11 +35,16 @@ public:
     {
         m_sampleTime = sampleTime;
         setTuningParameters(Kc, Ti, Td);
-        m_isAuto = false;
         m_controlOutputBias = controlOutputBias;
         m_controlMin = controlMin;
         m_controlMax = controlMax;
-        m_controlOutput = controlOutputBias;
+        reset();
+    }
+
+    void reset()
+    {
+        m_isAuto = false;
+        m_controlOutput = m_controlOutputBias;
         m_setPoint = 0.0f;
         m_integral = 0.0f;
         m_processLast = 0.0f;

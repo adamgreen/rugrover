@@ -29,6 +29,7 @@ class Navigate
     public:
         Navigate(DifferentialDrive* pDrive, uint32_t pidFrequency_Hz, float ticksPerRotation,
                  float leftWheelDiameter_mm, float rightWheelDiameter_mm, float wheelBaseline_mm,
+                 float distanceThreshold_mm, float angleThreshold_radians,
                  float headingPidKc, float headingPidTi, float headingPidTd,
                  float distancePidKc, float distancePidTi, float distancePidTd);
 
@@ -52,7 +53,7 @@ class Navigate
             m_waypointState = ROTATE_TO_NEXT;
         }
 
-        void setWaypointVelocity(float velocity_mps);
+        void setWaypointVelocities(float driveVelocity_mps, float turnVelocity_mps);
 
         void update();
         void drive(DriveFloatValues& velocities_mps);
@@ -74,6 +75,7 @@ class Navigate
             float angle;
         };
 
+        float roundMagnitudeUpTo1(float velocity);
         float calculateMetersPerSecondToTicksPerSample(float wheelDiameter_mm);
         float calculateTicksToMM(float wheelDiameter_mm);
         void updateCurrentPosition();
@@ -97,7 +99,8 @@ class Navigate
         DriveFloatValues    m_speedConversions;
         DriveFloatValues    m_distanceConversions;
         float               m_wheelBaseline_mm;
-        float               m_baseVelocity;
+        float               m_distanceThreshold;
+        float               m_angleThreshold;
         Position            m_currentPosition;
         DriveValues         m_prevTicks;
         AnglePID            m_headingPID;

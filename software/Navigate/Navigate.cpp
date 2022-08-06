@@ -15,8 +15,10 @@
 #include <string.h>
 #include <nrf_assert.h>
 
+
 Navigate::Navigate(DifferentialDrive* pDrive, uint32_t pidFrequency_Hz, float ticksPerRotation,
                   float leftWheelDiameter_mm, float rightWheelDiameter_mm, float wheelBaseline_mm,
+                  float distanceThreshold_mm, float angleThreshold_radians,
                   float headingPidKc, float headingPidTi, float headingPidTd,
                   float distancePidKc, float distancePidTi, float distancePidTd)
 : m_headingPID(headingPidKc, headingPidTi, headingPidTd, 0.0f, -0.5f, 0.5f, 1.0f/pidFrequency_Hz),
@@ -27,6 +29,8 @@ Navigate::Navigate(DifferentialDrive* pDrive, uint32_t pidFrequency_Hz, float ti
     m_pDrive = pDrive;
     m_pidFrequency_Hz = pidFrequency_Hz;
     m_ticksPerRotation = ticksPerRotation;
+    m_distanceThreshold = distanceThreshold_mm;
+    m_angleThreshold = angleThreshold_radians;
     m_pWaypoints = NULL;
     m_waypointCount = 0;
     setParameters(leftWheelDiameter_mm, rightWheelDiameter_mm, wheelBaseline_mm);
@@ -48,9 +52,10 @@ void Navigate::setParameters(float leftWheelDiameter_mm, float rightWheelDiamete
 void Navigate::reset()
 {
     memset(&m_currentPosition, 0, sizeof(m_currentPosition));
-    m_baseVelocity = 0;
     m_waypointIndex = 0;
     m_waypointState = ROTATE_TO_NEXT;
+    m_distancePID.reset();
+    m_headingPID.reset();
 }
 
 void Navigate::update()
@@ -73,7 +78,7 @@ void Navigate::update()
         case ROTATE_TO_NEXT:
         {
             delta = deltaToNextWaypoint();
-            if (fabsf(constrainAngle(delta.angle-m_currentPosition.heading)) < 10.0f * DEGREE_TO_RADIAN)
+            if (fabsf(constrainAngle(delta.angle-m_currentPosition.heading)) < m_angleThreshold)
             {
                 m_waypointState = DRIVE_TO_NEXT;
                 break;
@@ -87,12 +92,14 @@ void Navigate::update()
         }
         case DRIVE_TO_NEXT:
         {
+            const float ninetyDegrees = 90.0f * DEGREE_TO_RADIAN;
             delta = deltaToNextWaypoint();
             m_headingPID.updateSetPoint(delta.angle);
             float anglePortion = m_headingPID.compute(m_currentPosition.heading);
             m_distancePID.updateSetPoint(delta.distance);
             float distancePortion = m_distancePID.compute(0);
-            if (delta.distance < 10.0f)
+            float angleDelta = constrainAngle(delta.angle-m_currentPosition.heading);
+            if (delta.distance < m_distanceThreshold || fabsf(angleDelta) > ninetyDegrees)
             {
                 m_waypointState = ROTATE_TO_HEADING;
                 break;
@@ -106,7 +113,7 @@ void Navigate::update()
             float desiredHeading = m_pWaypoints[m_waypointIndex].heading;
             float currentHeading = m_currentPosition.heading;
             float angleDelta = isnan(desiredHeading) ? 0.0f : constrainAngle(desiredHeading - currentHeading);
-            if (fabsf(angleDelta) < 10.0f * DEGREE_TO_RADIAN)
+            if (fabsf(angleDelta) < m_angleThreshold)
             {
                 m_waypointIndex++;
                 m_waypointState = ROTATE_TO_NEXT;
@@ -121,27 +128,23 @@ void Navigate::update()
         }
     }
 
-    velocities.left *= m_speedConversions.left;
-    velocities.right *= m_speedConversions.right;
-    // UNDONE: Refactor repeating code into its own function.
-    // UNDONE: I might be able to remove this once I have the proper PID loops wired in.
-    if (velocities.left > 0.0f && velocities.left < 1.0f)
-    {
-        velocities.left = 1.0f;
-    }
-    else if (velocities.left < 0.0f && velocities.left > -1.0f)
-    {
-        velocities.left = -1.0f;
-    }
-    if (velocities.right > 0.0f && velocities.right < 1.0f)
-    {
-        velocities.right = 1.0f;
-    }
-    else if (velocities.right < 0.0f && velocities.right > -1.0f)
-    {
-        velocities.right = -1.0f;
-    }
+    velocities.left = roundMagnitudeUpTo1(velocities.left * m_speedConversions.left);
+    velocities.right = roundMagnitudeUpTo1(velocities.right * m_speedConversions.right);
     m_pDrive->setVelocity(velocities);
+}
+
+float Navigate::roundMagnitudeUpTo1(float velocity)
+{
+    if (velocity > 0.0f && velocity < 1.0f)
+    {
+        velocity = 1.0f;
+    }
+    else if (velocity < 0.0f && velocity > -1.0f)
+    {
+        velocity = -1.0f;
+    }
+
+    return velocity;
 }
 
 void Navigate::drive(DriveFloatValues& velocities_mps)
@@ -195,11 +198,10 @@ Navigate::PositionDelta Navigate::deltaToNextWaypoint()
     return delta;
 }
 
-void Navigate::setWaypointVelocity(float velocity_mps)
+void Navigate::setWaypointVelocities(float driveVelocity_mps, float turnVelocity_mps)
 {
-    m_baseVelocity = velocity_mps;
-    m_headingPID.setControlLimits(-velocity_mps, velocity_mps);
-    m_distancePID.setControlLimits(-velocity_mps, velocity_mps);
+    m_distancePID.setControlLimits(-driveVelocity_mps, driveVelocity_mps);
+    m_headingPID.setControlLimits(-turnVelocity_mps, turnVelocity_mps);
 }
 
 float Navigate::calculateMetersPerSecondToTicksPerSample(float wheelDiameter_mm)
