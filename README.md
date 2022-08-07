@@ -159,3 +159,4 @@ Once the mechanical and electronics were far enough along I could start writing 
   * Whether any motor faults or over-current events have been detected by the motor drivers.
   * The mAh consumed by the motors since reset.
   * A flag to indicate whether the PID is running in manual or auto mode.
+* [Navigate](software/Navigate/Navigate.h): This class is used to navigate between a list of user specified waypoints. It tracks the real world location of the robot in mm based on wheel odometry. Odometry requires accurate values for the left/right wheel diameters and wheelbase between the two wheels. The Navigate class has methods to run tests to help improve the estimates for these parameters.
