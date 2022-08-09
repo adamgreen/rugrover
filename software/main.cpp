@@ -90,7 +90,7 @@
 // The next 3 values are found through the calibration process and will be different for each bot and can even
 // change over time.
 // * The distance between the wheels in mm.
-#define WHEEL_BASELINE      128.1868f
+#define WHEELBASE           128.1868f
 // * The diameter of the left wheel in mm.
 #define LEFT_WHEEL_DIAMETER 80.65f
 // * The diameter of the right wheel as a ratio of the left wheel (will be found during calibration).
@@ -211,7 +211,7 @@ static DifferentialDrive    g_drive(LMOTOR_EN_PIN, LMOTOR_PWM1_PIN, LMOTOR_PWM2_
 
 // Navigation module.
 static Navigate             g_navigate(&g_drive, MOTOR_PID_FREQUENCY, MOTOR_TICKS_PER_REV,
-                                       LEFT_WHEEL_DIAMETER, RIGHT_WHEEL_DIAMETER, WHEEL_BASELINE,
+                                       LEFT_WHEEL_DIAMETER, RIGHT_WHEEL_DIAMETER, WHEELBASE,
                                        THRESHOLD_DISTANCE, THRESHOLD_ANGLE,
                                        HEADING_PID_Kc, HEADING_PID_Ti, HEADING_PID_Td,
                                        DISTANCE_PID_Kc, DISTANCE_PID_Ti, DISTANCE_PID_Td);
@@ -339,8 +339,10 @@ static void testNavigateRoutine()
 {
     float leftWheelDiameter = LEFT_WHEEL_DIAMETER;
     float rightWheelDiameter = RIGHT_WHEEL_DIAMETER;
-    float wheelbase = WHEEL_BASELINE;
+    float wheelbase = WHEELBASE;
 
+    uint32_t logBuffer[2048/sizeof(uint32_t)];
+    g_navigate.setLogBuffer(logBuffer, sizeof(logBuffer));
     while (true)
     {
         printf("\n\n"
@@ -413,7 +415,6 @@ static void testNavigateRoutine()
             if (g_navigate.hasReachedFinalWaypoint())
             {
                 g_OLED.refreshAndBlock();
-                g_navigate.reset();
                 break;
             }
 
@@ -428,6 +429,9 @@ static void testNavigateRoutine()
                 count = 0;
             }
         }
+        printf("Dumping to test_navigate.csv...\n");
+        g_navigate.dumpLog("test_navigate.csv");
+        printf("Done.\n");
     }
 }
 

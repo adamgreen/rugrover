@@ -28,12 +28,12 @@ class Navigate
 {
     public:
         Navigate(DifferentialDrive* pDrive, uint32_t pidFrequency_Hz, float ticksPerRotation,
-                 float leftWheelDiameter_mm, float rightWheelDiameter_mm, float wheelBaseline_mm,
+                 float leftWheelDiameter_mm, float rightWheelDiameter_mm, float wheelbase_mm,
                  float distanceThreshold_mm, float angleThreshold_radians,
                  float headingPidKc, float headingPidTi, float headingPidTd,
                  float distancePidKc, float distancePidTi, float distancePidTd);
 
-        void setParameters(float leftWheelDiameter_mm, float rightWheelDiameter_mm, float wheelBaseline_mm);
+        void setParameters(float leftWheelDiameter_mm, float rightWheelDiameter_mm, float wheelbase_mm);
         void reset();
 
         struct Position
@@ -68,6 +68,9 @@ class Navigate
             return m_waypointIndex >= m_waypointCount;
         }
 
+        void setLogBuffer(void* pLog, size_t logSize);
+        bool dumpLog(const char* pFilename);
+
     protected:
         struct PositionDelta
         {
@@ -76,10 +79,11 @@ class Navigate
         };
 
         float roundMagnitudeUpTo1(float velocity);
+        PositionDelta calculateMovementAmount(DriveValues& wheelDiffs);
+        PositionDelta deltaToNextWaypoint();
         float calculateMetersPerSecondToTicksPerSample(float wheelDiameter_mm);
         float calculateTicksToMM(float wheelDiameter_mm);
         void updateCurrentPosition();
-        PositionDelta deltaToNextWaypoint();
 
         enum WaypointState
         {
@@ -93,12 +97,15 @@ class Navigate
         size_t              m_waypointCount;
         size_t              m_waypointIndex;
         WaypointState       m_waypointState;
+        int8_t*             m_pLog;
+        int8_t*             m_pLogCurr;
+        size_t              m_logSize;
         uint32_t            m_pidFrequency_Hz;
         float               m_ticksPerRotation;
         DriveFloatValues    m_wheelDiameters_mm;
         DriveFloatValues    m_speedConversions;
         DriveFloatValues    m_distanceConversions;
-        float               m_wheelBaseline_mm;
+        float               m_wheelbase_mm;
         float               m_distanceThreshold;
         float               m_angleThreshold;
         Position            m_currentPosition;
