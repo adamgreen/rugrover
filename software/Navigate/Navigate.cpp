@@ -27,7 +27,7 @@ struct LogEntry
 
 Navigate::Navigate(DifferentialDrive* pDrive, uint32_t pidFrequency_Hz, float ticksPerRotation,
                   float leftWheelDiameter_mm, float rightWheelDiameter_mm, float wheelbase_mm,
-                  float distanceThreshold_mm, float angleThreshold_radians,
+                  float distanceThreshold_mm, float angleThreshold_radians, float headingRatio,
                   float headingPidKc, float headingPidTi, float headingPidTd,
                   float distancePidKc, float distancePidTi, float distancePidTd)
 : m_headingPID(headingPidKc, headingPidTi, headingPidTd, 0.0f, -0.5f, 0.5f, 1.0f/pidFrequency_Hz),
@@ -40,6 +40,7 @@ Navigate::Navigate(DifferentialDrive* pDrive, uint32_t pidFrequency_Hz, float ti
     m_ticksPerRotation = ticksPerRotation;
     m_distanceThreshold = distanceThreshold_mm;
     m_angleThreshold = angleThreshold_radians;
+    m_headingRatio = headingRatio;
     m_pWaypoints = NULL;
     m_waypointCount = 0;
     m_pLog = NULL;
@@ -110,10 +111,15 @@ void Navigate::update()
         {
             const float ninetyDegrees = 90.0f * DEGREE_TO_RADIAN;
             delta = deltaToNextWaypoint();
-            m_headingPID.updateSetPoint(delta.angle);
-            float anglePortion = m_headingPID.compute(m_currentPosition.heading);
+
             m_distancePID.updateSetPoint(delta.distance);
             float distancePortion = m_distancePID.compute(0);
+
+            float headingLimit = distancePortion * m_headingRatio;
+            m_headingPID.setControlLimits(-headingLimit, headingLimit);
+            m_headingPID.updateSetPoint(delta.angle);
+            float anglePortion = m_headingPID.compute(m_currentPosition.heading);
+
             float angleDelta = constrainAngle(delta.angle-m_currentPosition.heading);
             if (delta.distance < m_distanceThreshold || fabsf(angleDelta) > ninetyDegrees)
             {

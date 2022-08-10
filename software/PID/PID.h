@@ -78,18 +78,7 @@ public:
             float controlOutput;
 
             controlOutput = m_controlOutputBias + m_Kp * error + integral - m_Kd * processDelta;
-            if (controlOutput < m_controlMin)
-            {
-                if (m_usesIntegral)
-                    integral += (m_controlMin - controlOutput);
-                controlOutput = m_controlMin;
-            }
-            else if (controlOutput > m_controlMax)
-            {
-                if (m_usesIntegral)
-                    integral -= (controlOutput - m_controlMax);
-                controlOutput = m_controlMax;
-            }
+            limitControlOutputAndIntegralWindup(controlOutput, integral);
             m_integral = integral;
             m_controlOutput = controlOutput;
         }
@@ -148,6 +137,7 @@ public:
     {
         m_controlMin = controlMin;
         m_controlMax = controlMax;
+        limitControlOutputAndIntegralWindup(m_controlOutput, m_integral);
     }
 
 protected:
@@ -155,6 +145,22 @@ protected:
     {
         m_Ki = (m_Ti == 0.0f) ? 0.0f : (m_Kp / m_Ti) * m_sampleTime;
         m_Kd = (m_Td == 0.0f) ? 0.0f : (m_Kp * m_Td) / m_sampleTime;
+    }
+
+    void limitControlOutputAndIntegralWindup(float& controlOutput, float& integral)
+    {
+        if (controlOutput < m_controlMin)
+        {
+            if (m_usesIntegral)
+                integral += (m_controlMin - controlOutput);
+            controlOutput = m_controlMin;
+        }
+        else if (controlOutput > m_controlMax)
+        {
+            if (m_usesIntegral)
+                integral -= (controlOutput - m_controlMax);
+            controlOutput = m_controlMax;
+        }
     }
 
     float                       m_Ti;
