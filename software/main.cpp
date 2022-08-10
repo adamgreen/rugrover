@@ -36,6 +36,7 @@
           0.4           RMOTOR_OCM_PIM          Right Motor Driver - OCM
 
 */
+#include <ctype.h>
 #include <stdio.h>
 #include <math.h>
 #include <app_util_platform.h>
@@ -155,6 +156,9 @@
 #define THRESHOLD_DISTANCE      10.0f
 #define THRESHOLD_ANGLE         (10.0f * DEGREE_TO_RADIAN)
 
+// The heading correction limits are based on the current forward speed. This macro specifies that ratio.
+#define HEADING_VS_FORWARD_SPEED    0.5f
+
 // PID Frequency in Hz.
 #define MOTOR_PID_FREQUENCY     100
 
@@ -212,7 +216,7 @@ static DifferentialDrive    g_drive(LMOTOR_EN_PIN, LMOTOR_PWM1_PIN, LMOTOR_PWM2_
 // Navigation module.
 static Navigate             g_navigate(&g_drive, MOTOR_PID_FREQUENCY, MOTOR_TICKS_PER_REV,
                                        LEFT_WHEEL_DIAMETER, RIGHT_WHEEL_DIAMETER, WHEELBASE,
-                                       THRESHOLD_DISTANCE, THRESHOLD_ANGLE,
+                                       THRESHOLD_DISTANCE, THRESHOLD_ANGLE, HEADING_VS_FORWARD_SPEED,
                                        HEADING_PID_Kc, HEADING_PID_Ti, HEADING_PID_Td,
                                        DISTANCE_PID_Kc, DISTANCE_PID_Ti, DISTANCE_PID_Td);
 
@@ -227,6 +231,8 @@ static DebugRoutines g_dbgRoutine = DEBUG_MAX;
 static uint32_t displayDebugMenuAndGetOption(const char* pOptionsString, uint32_t maxOption);
 static void testNavigateRoutine();
 static float getFloatOption(const char* pDescription, float defaultVal);
+static bool testDriveForward();
+static bool testTurnInPlace(float speed_mps, float angleThreshold, uint32_t iteration);
 static void testPidRoutine();
 static void sleep_us(uint32_t* pPrevTime, uint32_t delay);
 static void testPidSpeedCalibrateRoutine();
@@ -339,6 +345,7 @@ static void testNavigateRoutine()
 {
     float leftWheelDiameter = LEFT_WHEEL_DIAMETER;
     float rightWheelDiameter = RIGHT_WHEEL_DIAMETER;
+    float wheelRatio = rightWheelDiameter / leftWheelDiameter;
     float wheelbase = WHEELBASE;
 
     uint32_t logBuffer[2048/sizeof(uint32_t)];
@@ -350,12 +357,33 @@ static void testNavigateRoutine()
                "Just press <Return> to keep current setting.\n");
 
         leftWheelDiameter = getFloatOption("Left Wheel Diameter in mm", leftWheelDiameter);
-        rightWheelDiameter = getFloatOption("Right Wheel Diameter in mm", rightWheelDiameter);
+        wheelRatio = getFloatOption("Right Wheel Diameter / Left Wheel Diameter ratio", wheelRatio);
+        rightWheelDiameter = leftWheelDiameter * wheelRatio;
         wheelbase = getFloatOption("Wheel base in mm", wheelbase);
+
+        char input[8];
+        enum { NEITHER, STRAIGHT, TURN } testMode = NEITHER;
+        do
+        {
+            printf("\nDrive (s)traight or (t)urn in place: ");
+            fgets(input, sizeof(input), stdin);
+            switch (tolower(input[0]))
+            {
+                case 's':
+                    testMode = STRAIGHT;
+                    break;
+                case 't':
+                    testMode = TURN;
+                    break;
+                default:
+                    break;
+            }
+        } while (testMode == NEITHER);
 
         // Enter main action loop.
         const float    driveSpeed_mps = 0.25f;
         const float    turnSpeed_mps = 0.25f;
+        const float    angleThreshold = 5.0f * DEGREE_TO_RADIAN;
         const uint32_t delayms = 1000 / MOTOR_PID_FREQUENCY;
         const uint32_t delay_us = delayms * 1000;
         uint32_t count = 0;
@@ -378,6 +406,7 @@ static void testNavigateRoutine()
         g_navigate.setWaypoints(waypoints, ARRAY_SIZE(waypoints));
         g_navigate.setWaypointVelocities(driveSpeed_mps, turnSpeed_mps);
         g_drive.enable();
+        uint32_t iteration = 0;
         uint32_t prevTime = micros();
         uint32_t prevDumpTime = micros();
         while (true)
@@ -389,7 +418,18 @@ static void testNavigateRoutine()
                 return;
             }
 
-            g_navigate.update();
+            bool testDone = false;
+            switch (testMode)
+            {
+                case STRAIGHT:
+                    testDone = testDriveForward();
+                    break;
+                case TURN:
+                    testDone = testTurnInPlace(turnSpeed_mps, angleThreshold, iteration);
+                    break;
+                default:
+                    break;
+            }
 
             DifferentialDrive::DriveStats stats = g_drive.getStats();
             // Check to see if either motor controller has detected a fault (over voltage, over current, over temp, etc).
@@ -412,9 +452,14 @@ static void testNavigateRoutine()
             g_OLED.setCursor(8*6, 4*8);  g_OLED.printf("%4ld,%4ld\n", stats.maxCurrent_mA.left, stats.maxCurrent_mA.right);
             g_OLED.refresh();
 
-            if (g_navigate.hasReachedFinalWaypoint())
+            if (testDone)
             {
                 g_OLED.refreshAndBlock();
+
+                // Ask the motors to brake to a stop and wait for it to complete before considering this test done.
+                DriveValues power = { .left = 0, .right = 0 };
+                g_drive.setPower(power);
+                nrf_delay_ms(250);
                 break;
             }
 
@@ -428,6 +473,8 @@ static void testNavigateRoutine()
                 prevDumpTime = currTime;
                 count = 0;
             }
+
+            iteration++;
         }
         printf("Dumping to test_navigate.csv...\n");
         g_navigate.dumpLog("test_navigate.csv");
@@ -446,6 +493,30 @@ static float getFloatOption(const char* pDescription, float defaultVal)
         return defaultVal;
     }
     return strtof(input, NULL);
+}
+
+static bool testDriveForward()
+{
+    g_navigate.update();
+
+    return g_navigate.hasReachedFinalWaypoint();
+}
+
+static bool testTurnInPlace(float speed_mps, float angleThreshold, uint32_t iteration)
+{
+    DriveFloatValues velocities = { .left = speed_mps, .right = -speed_mps };
+    bool stopTest = false;
+    Navigate::Position position = g_navigate.getCurrentPosition();
+    if (iteration > 5 && position.heading < 0.0f && position.heading > -angleThreshold)
+    {
+        stopTest = true;
+        velocities.left = 0.0f;
+        velocities.right = 0.0f;
+    }
+
+    g_navigate.drive(velocities);
+
+    return stopTest;
 }
 
 static void testPidRoutine()
