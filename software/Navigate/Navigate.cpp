@@ -77,76 +77,80 @@ void Navigate::reset()
 
 void Navigate::update()
 {
-    if (!m_pDrive->isEnabled() || m_waypointIndex >= m_waypointCount)
+    if (!m_pDrive->isEnabled())
     {
         return;
     }
 
     updateCurrentPosition();
 
-    PositionDelta delta;
     DriveFloatValues velocities =
     {
         .left = 0.0f,
         .right = 0.0f
     };
-    switch (m_waypointState)
+
+    if (m_waypointIndex < m_waypointCount)
     {
-        case ROTATE_TO_NEXT:
+        PositionDelta delta;
+        switch (m_waypointState)
         {
-            delta = deltaToNextWaypoint();
-            if (fabsf(constrainAngle(delta.angle-m_currentPosition.heading)) < m_angleThreshold)
+            case ROTATE_TO_NEXT:
             {
-                m_waypointState = DRIVE_TO_NEXT;
+                delta = deltaToNextWaypoint();
+                if (fabsf(constrainAngle(delta.angle-m_currentPosition.heading)) < m_angleThreshold)
+                {
+                    m_waypointState = DRIVE_TO_NEXT;
+                    break;
+                }
+
+                m_headingPID.updateSetPoint(delta.angle);
+                float controlOutput = m_headingPID.compute(m_currentPosition.heading);
+                velocities.left = controlOutput;
+                velocities.right = -controlOutput;
                 break;
             }
-
-            m_headingPID.updateSetPoint(delta.angle);
-            float controlOutput = m_headingPID.compute(m_currentPosition.heading);
-            velocities.left = controlOutput;
-            velocities.right = -controlOutput;
-            break;
-        }
-        case DRIVE_TO_NEXT:
-        {
-            const float ninetyDegrees = 90.0f * DEGREE_TO_RADIAN;
-            delta = deltaToNextWaypoint();
-
-            m_distancePID.updateSetPoint(delta.distance);
-            float distancePortion = m_distancePID.compute(0);
-
-            float headingLimit = distancePortion * m_headingRatio;
-            m_headingPID.setControlLimits(-headingLimit, headingLimit);
-            m_headingPID.updateSetPoint(delta.angle);
-            float anglePortion = m_headingPID.compute(m_currentPosition.heading);
-
-            float angleDelta = constrainAngle(delta.angle-m_currentPosition.heading);
-            if (delta.distance < m_distanceThreshold || fabsf(angleDelta) > ninetyDegrees)
+            case DRIVE_TO_NEXT:
             {
-                m_waypointState = ROTATE_TO_HEADING;
+                const float ninetyDegrees = 90.0f * DEGREE_TO_RADIAN;
+                delta = deltaToNextWaypoint();
+
+                m_distancePID.updateSetPoint(delta.distance);
+                float distancePortion = m_distancePID.compute(0);
+
+                float headingLimit = distancePortion * m_headingRatio;
+                m_headingPID.setControlLimits(-headingLimit, headingLimit);
+                m_headingPID.updateSetPoint(delta.angle);
+                float anglePortion = m_headingPID.compute(m_currentPosition.heading);
+
+                float angleDelta = constrainAngle(delta.angle-m_currentPosition.heading);
+                if (delta.distance < m_distanceThreshold || fabsf(angleDelta) > ninetyDegrees)
+                {
+                    m_waypointState = ROTATE_TO_HEADING;
+                    break;
+                }
+                velocities.left = distancePortion + anglePortion;
+                velocities.right = distancePortion - anglePortion;
                 break;
             }
-            velocities.left = distancePortion + anglePortion;
-            velocities.right = distancePortion - anglePortion;
-            break;
-        }
-        case ROTATE_TO_HEADING:
-        {
-            float desiredHeading = m_pWaypoints[m_waypointIndex].heading;
-            float currentHeading = m_currentPosition.heading;
-            float angleDelta = isnan(desiredHeading) ? 0.0f : constrainAngle(desiredHeading - currentHeading);
-            if (fabsf(angleDelta) < m_angleThreshold)
+            case ROTATE_TO_HEADING:
             {
-                m_waypointIndex++;
-                m_waypointState = ROTATE_TO_NEXT;
+                float desiredHeading = m_pWaypoints[m_waypointIndex].heading;
+                float currentHeading = m_currentPosition.heading;
+                float angleDelta = isnan(desiredHeading) ? 0.0f : constrainAngle(desiredHeading - currentHeading);
+                if (fabsf(angleDelta) < m_angleThreshold)
+                {
+                    m_waypointIndex++;
+                    m_waypointState = ROTATE_TO_NEXT;
+                    break;
+                }
+
+                m_headingPID.updateSetPoint(desiredHeading);
+                float controlOutput = m_headingPID.compute(currentHeading);
+                velocities.left = controlOutput;
+                velocities.right = -controlOutput;
                 break;
             }
-
-            m_headingPID.updateSetPoint(desiredHeading);
-            float controlOutput = m_headingPID.compute(currentHeading);
-            velocities.left = controlOutput;
-            velocities.right = -controlOutput;
-            break;
         }
     }
 

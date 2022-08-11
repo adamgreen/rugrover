@@ -231,7 +231,7 @@ static DebugRoutines g_dbgRoutine = DEBUG_MAX;
 static uint32_t displayDebugMenuAndGetOption(const char* pOptionsString, uint32_t maxOption);
 static void testNavigateRoutine();
 static float getFloatOption(const char* pDescription, float defaultVal);
-static bool testDriveForward();
+static bool testDriveForward(uint32_t iteration);
 static bool testTurnInPlace(float speed_mps, float angleThreshold, uint32_t iteration);
 static void testPidRoutine();
 static void sleep_us(uint32_t* pPrevTime, uint32_t delay);
@@ -383,7 +383,7 @@ static void testNavigateRoutine()
         // Enter main action loop.
         const float    driveSpeed_mps = 0.25f;
         const float    turnSpeed_mps = 0.25f;
-        const float    angleThreshold = 5.0f * DEGREE_TO_RADIAN;
+        const float    angleThreshold = 15.0f * DEGREE_TO_RADIAN;
         const uint32_t delayms = 1000 / MOTOR_PID_FREQUENCY;
         const uint32_t delay_us = delayms * 1000;
         uint32_t count = 0;
@@ -422,7 +422,7 @@ static void testNavigateRoutine()
             switch (testMode)
             {
                 case STRAIGHT:
-                    testDone = testDriveForward();
+                    testDone = testDriveForward(iteration);
                     break;
                 case TURN:
                     testDone = testTurnInPlace(turnSpeed_mps, angleThreshold, iteration);
@@ -495,28 +495,67 @@ static float getFloatOption(const char* pDescription, float defaultVal)
     return strtof(input, NULL);
 }
 
-static bool testDriveForward()
+static bool testDriveForward(uint32_t iteration)
 {
+    // Brake the motors for N iterations before considering the test completed.
+    const uint32_t  iterationsForBraking = 25;
+    static uint32_t iterationsUntilStop = 0;
+    if (iteration == 0)
+    {
+        iterationsUntilStop = 0;
+    }
+    if (iterationsUntilStop > 0)
+    {
+        iterationsUntilStop--;
+        if (iterationsUntilStop == 0)
+        {
+            return true;
+        }
+    }
+
     g_navigate.update();
 
-    return g_navigate.hasReachedFinalWaypoint();
+    if (iterationsUntilStop == 0 && g_navigate.hasReachedFinalWaypoint())
+    {
+        iterationsUntilStop = iterationsForBraking;
+    }
+    return false;
 }
 
 static bool testTurnInPlace(float speed_mps, float angleThreshold, uint32_t iteration)
 {
-    DriveFloatValues velocities = { .left = speed_mps, .right = -speed_mps };
-    bool stopTest = false;
-    Navigate::Position position = g_navigate.getCurrentPosition();
-    if (iteration > 5 && position.heading < 0.0f && position.heading > -angleThreshold)
+    // Brake the motors for N iterations before considering the test completed.
+    const uint32_t  iterationsForBraking = 50;
+    static uint32_t iterationsUntilStop = 0;
+    if (iteration == 0)
     {
-        stopTest = true;
+        iterationsUntilStop = 0;
+    }
+    if (iterationsUntilStop > 0)
+    {
+        iterationsUntilStop--;
+        if (iterationsUntilStop == 0)
+        {
+            return true;
+        }
+    }
+
+    DriveFloatValues velocities = { .left = speed_mps, .right = -speed_mps };
+    Navigate::Position position = g_navigate.getCurrentPosition();
+    if (iterationsUntilStop > 0 || (iteration > 5 && position.heading < 0.0f && position.heading > -angleThreshold))
+    {
+        // Command the motors to brake for the next few iterations.
         velocities.left = 0.0f;
         velocities.right = 0.0f;
+        if (iterationsUntilStop == 0)
+        {
+            iterationsUntilStop = iterationsForBraking;
+        }
     }
 
     g_navigate.drive(velocities);
 
-    return stopTest;
+    return false;
 }
 
 static void testPidRoutine()
