@@ -93,9 +93,9 @@
 // * The distance between the wheels in mm.
 #define WHEELBASE           128.1868f
 // * The diameter of the left wheel in mm.
-#define LEFT_WHEEL_DIAMETER 80.65f
+#define LEFT_WHEEL_DIAMETER 80.68f
 // * The diameter of the right wheel as a ratio of the left wheel (will be found during calibration).
-#define RIGHT_WHEEL_RATIO   1.0f
+#define RIGHT_WHEEL_RATIO   0.996f
 
 // The calculated diameter of the right wheel based on left wheel and preceding ratio.
 #define RIGHT_WHEEL_DIAMETER    (RIGHT_WHEEL_RATIO * LEFT_WHEEL_DIAMETER)
@@ -231,7 +231,7 @@ static DebugRoutines g_dbgRoutine = DEBUG_MAX;
 static uint32_t displayDebugMenuAndGetOption(const char* pOptionsString, uint32_t maxOption);
 static void testNavigateRoutine();
 static float getFloatOption(const char* pDescription, float defaultVal);
-static bool testDriveForward(uint32_t iteration);
+static bool testDriveWaypoints(uint32_t iteration);
 static bool testTurnInPlace(float speed_mps, float angleThreshold, uint32_t iteration);
 static void testPidRoutine();
 static void sleep_us(uint32_t* pPrevTime, uint32_t delay);
@@ -362,10 +362,10 @@ static void testNavigateRoutine()
         wheelbase = getFloatOption("Wheel base in mm", wheelbase);
 
         char input[8];
-        enum { NEITHER, STRAIGHT, TURN } testMode = NEITHER;
+        enum { NEITHER, STRAIGHT, TURN, CLOCKWISE, COUNTERCLOCKWISE } testMode = NEITHER;
         do
         {
-            printf("\nDrive (s)traight or (t)urn in place: ");
+            printf("\nDrive (s)traight, (t)urn in place, (c)lockwise, (x)counter-clockwise: ");
             fgets(input, sizeof(input), stdin);
             switch (tolower(input[0]))
             {
@@ -374,6 +374,12 @@ static void testNavigateRoutine()
                     break;
                 case 't':
                     testMode = TURN;
+                    break;
+                case 'c':
+                    testMode = CLOCKWISE;
+                    break;
+                case 'x':
+                    testMode = COUNTERCLOCKWISE;
                     break;
                 default:
                     break;
@@ -396,14 +402,39 @@ static void testNavigateRoutine()
         g_OLED.printf("  Ticks:\n");
         g_OLED.printf(" Max mA:\n");
 
-        Navigate::Position waypoints[] =
+        g_navigate.reset();
+
+        g_navigate.setParameters(leftWheelDiameter, rightWheelDiameter, wheelbase);
+        Navigate::Position straightWaypoints[] =
         {
             { .x = 0.0f, .y = 500.0f, .heading = NAN }
         };
-
-        g_navigate.reset();
-        g_navigate.setParameters(leftWheelDiameter, rightWheelDiameter, wheelbase);
-        g_navigate.setWaypoints(waypoints, ARRAY_SIZE(waypoints));
+        Navigate::Position clockwiseWaypoints[] =
+        {
+            { .x = 0.0f, .y = 500.0f, .heading = NAN },
+            { .x = 500.0f, .y = 500.0f, .heading = NAN },
+            { .x = 500.0f, .y = 0.0f, .heading = NAN },
+            { .x = 0.0f, .y = 0.0f, .heading = 0.0f }
+        };
+        Navigate::Position counterClockwiseWaypoints[] =
+        {
+            { .x = 500.0f, .y = 0.0f, .heading = NAN },
+            { .x = 500.0f, .y = 500.0f, .heading = NAN },
+            { .x = 0.0f, .y = 500.0f, .heading = NAN },
+            { .x = 0.0f, .y = 0.0f, .heading = 0.0f }
+        };
+        switch (testMode)
+        {
+            case CLOCKWISE:
+                g_navigate.setWaypoints(clockwiseWaypoints, ARRAY_SIZE(clockwiseWaypoints));
+                break;
+            case COUNTERCLOCKWISE:
+                g_navigate.setWaypoints(counterClockwiseWaypoints, ARRAY_SIZE(counterClockwiseWaypoints));
+                break;
+            default:
+                g_navigate.setWaypoints(straightWaypoints, ARRAY_SIZE(straightWaypoints));
+                break;
+        }
         g_navigate.setWaypointVelocities(driveSpeed_mps, turnSpeed_mps);
         g_drive.enable();
         uint32_t iteration = 0;
@@ -422,7 +453,9 @@ static void testNavigateRoutine()
             switch (testMode)
             {
                 case STRAIGHT:
-                    testDone = testDriveForward(iteration);
+                case CLOCKWISE:
+                case COUNTERCLOCKWISE:
+                    testDone = testDriveWaypoints(iteration);
                     break;
                 case TURN:
                     testDone = testTurnInPlace(turnSpeed_mps, angleThreshold, iteration);
@@ -495,7 +528,7 @@ static float getFloatOption(const char* pDescription, float defaultVal)
     return strtof(input, NULL);
 }
 
-static bool testDriveForward(uint32_t iteration)
+static bool testDriveWaypoints(uint32_t iteration)
 {
     // Brake the motors for N iterations before considering the test completed.
     const uint32_t  iterationsForBraking = 25;
