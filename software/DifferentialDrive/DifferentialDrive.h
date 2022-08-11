@@ -34,7 +34,7 @@ class DifferentialDrive
                           uint8_t rightEncoderAPin, uint8_t rightEncoderBPin,
                           float pidKc, float pidTi, float pidTd, int32_t maxMotorPercentage,
                           SAADCScanner* pADC,
-                          nrf_drv_pwm_t* pPWM, uint32_t pwmFrequency, uint32_t pidFrequency,
+                          nrf_drv_pwm_t* pPWM, uint32_t pwmFrequency_Hz, uint32_t pidFrequency_Hz,
                           uint32_t maxCurrent_mA);
 
         struct DriveStats
@@ -104,6 +104,10 @@ class DifferentialDrive
         }
 
         DriveStats getStats();
+        uint32_t getPidFrequency()
+        {
+            return m_pidFrequency_Hz;
+        }
 
     protected:
         void updateMotors();
@@ -113,6 +117,7 @@ class DifferentialDrive
         DriveValues                 m_maxCurrents_mA;
         DriveValues                 m_prevVelocities;
         DriveLimits                 m_maxMotorLimits;
+        uint32_t                    m_pidFrequency_Hz;
         float                       m_interval;
         float                       m_capacityUsed_mAh;
         QuadratureDecoderHardware   m_leftEncoder;

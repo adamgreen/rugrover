@@ -23,15 +23,15 @@ DifferentialDrive::DifferentialDrive(uint8_t leftEnablePin, uint8_t leftPwm1Pin,
                     uint8_t rightEncoderAPin, uint8_t rightEncoderBPin,
                     float pidKc, float pidTi, float pidTd, int32_t maxMotorPercentage,
                     SAADCScanner* pADC,
-                    nrf_drv_pwm_t* pPWM, uint32_t pwmFrequency, uint32_t pidFrequency,
+                    nrf_drv_pwm_t* pPWM, uint32_t pwmFrequency_Hz, uint32_t pidFrequency_Hz,
                     uint32_t maxCurrent_mA)
 : m_leftEncoder(leftEncoderAPin, leftEncoderBPin),
   m_rightEncoder(rightEncoderAPin, rightEncoderBPin),
-  m_leftPID(pidKc, pidTi, pidTd, 0.0f, -(float)maxMotorPercentage, (float)maxMotorPercentage, 1.0f/pidFrequency),
-  m_rightPID(pidKc, pidTi, pidTd, 0.0f, -(float)maxMotorPercentage, (float)maxMotorPercentage, 1.0f/pidFrequency),
+  m_leftPID(pidKc, pidTi, pidTd, 0.0f, -(float)maxMotorPercentage, (float)maxMotorPercentage, 1.0f/pidFrequency_Hz),
+  m_rightPID(pidKc, pidTi, pidTd, 0.0f, -(float)maxMotorPercentage, (float)maxMotorPercentage, 1.0f/pidFrequency_Hz),
   m_motors(leftEnablePin, leftPwm1Pin, leftPwm2Pin, leftDiagPin, leftOcmPin, leftReverse,
            rightEnablePin, rightPwm1Pin, rightPwm2Pin, rightDiagPin, rightOcmPin, rightReverse,
-           pADC, pPWM, pwmFrequency, maxCurrent_mA)
+           pADC, pPWM, pwmFrequency_Hz, maxCurrent_mA)
 {
     memset(&m_prevTicks, 0, sizeof(m_prevTicks));
     memset(&m_maxCurrents_mA, 0, sizeof(m_maxCurrents_mA));
@@ -40,7 +40,8 @@ DifferentialDrive::DifferentialDrive(uint8_t leftEnablePin, uint8_t leftPwm1Pin,
     m_rightReverse = rightReverse;
     m_maxMotorLimits.min = -maxMotorPercentage;
     m_maxMotorLimits.max = maxMotorPercentage;
-    m_interval = 1.0f / pidFrequency;
+    m_interval = 1.0f / pidFrequency_Hz;
+    m_pidFrequency_Hz = pidFrequency_Hz;
     m_capacityUsed_mAh = 0.0f;
     m_initWasSuccessful = false;
     m_isEnabled = false;

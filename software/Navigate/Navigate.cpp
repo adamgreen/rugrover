@@ -25,18 +25,17 @@ struct LogEntry
 };
 
 
-Navigate::Navigate(DifferentialDrive* pDrive, uint32_t pidFrequency_Hz, float ticksPerRotation,
+Navigate::Navigate(DifferentialDrive* pDrive, float ticksPerRotation,
                   float leftWheelDiameter_mm, float rightWheelDiameter_mm, float wheelbase_mm,
                   float distanceThreshold_mm, float angleThreshold_radians, float headingRatio,
                   float headingPidKc, float headingPidTi, float headingPidTd,
                   float distancePidKc, float distancePidTi, float distancePidTd)
-: m_headingPID(headingPidKc, headingPidTi, headingPidTd, 0.0f, -0.5f, 0.5f, 1.0f/pidFrequency_Hz),
-  m_distancePID(distancePidKc, distancePidTi, distancePidTd, 0.0f, -0.5f, 0.5f, 1.0f/pidFrequency_Hz)
+: m_headingPID(headingPidKc, headingPidTi, headingPidTd, 0.0f, -0.5f, 0.5f, 1.0f/pDrive->getPidFrequency()),
+  m_distancePID(distancePidKc, distancePidTi, distancePidTd, 0.0f, -0.5f, 0.5f, 1.0f/pDrive->getPidFrequency())
 {
     ASSERT ( pDrive != NULL );
 
     m_pDrive = pDrive;
-    m_pidFrequency_Hz = pidFrequency_Hz;
     m_ticksPerRotation = ticksPerRotation;
     m_distanceThreshold = distanceThreshold_mm;
     m_angleThreshold = angleThreshold_radians;
@@ -261,7 +260,7 @@ void Navigate::setWaypointVelocities(float driveVelocity_mps, float turnVelocity
 float Navigate::calculateMetersPerSecondToTicksPerSample(float wheelDiameter_mm)
 {
     // m/s * 1000mm/m * 1rev/circum_mm * ticks/rev * 1s/100sample = ticks/sample
-    return (1000.0f * m_ticksPerRotation) / ((float)M_PI * wheelDiameter_mm * (float)m_pidFrequency_Hz);
+    return (1000.0f * m_ticksPerRotation) / ((float)M_PI * wheelDiameter_mm * (float)m_pDrive->getPidFrequency());
 }
 
 float Navigate::calculateTicksToMM(float wheelDiameter_mm)
@@ -323,7 +322,7 @@ bool Navigate::dumpLog(const char* pFilename)
                 position.x, position.y, position.heading * RADIAN_TO_DEGREE);
 
         // We are dumping the log backwards, so rewind the time, tick count, position, etc.
-        msec -= 1000 / m_pidFrequency_Hz;
+        msec -= 1000 / m_pDrive->getPidFrequency();
         ticks.left -= pCurr->leftTickDelta;
         ticks.right -= pCurr->rightTickDelta;
         DriveValues wheelDiffs =

@@ -27,7 +27,7 @@
 class Navigate
 {
     public:
-        Navigate(DifferentialDrive* pDrive, uint32_t pidFrequency_Hz, float ticksPerRotation,
+        Navigate(DifferentialDrive* pDrive, float ticksPerRotation,
                  float leftWheelDiameter_mm, float rightWheelDiameter_mm, float wheelbase_mm,
                  float distanceThreshold_mm, float angleThreshold_radians, float headingRatio,
                  float headingPidKc, float headingPidTi, float headingPidTd,
@@ -100,7 +100,6 @@ class Navigate
         int8_t*             m_pLog;
         int8_t*             m_pLogCurr;
         size_t              m_logSize;
-        uint32_t            m_pidFrequency_Hz;
         float               m_ticksPerRotation;
         DriveFloatValues    m_wheelDiameters_mm;
         DriveFloatValues    m_speedConversions;

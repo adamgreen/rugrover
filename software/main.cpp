@@ -214,7 +214,7 @@ static DifferentialDrive    g_drive(LMOTOR_EN_PIN, LMOTOR_PWM1_PIN, LMOTOR_PWM2_
                                      &g_PWM, MOTOR_PWM_FREQUENCY, MOTOR_PID_FREQUENCY, MOTOR_MAX_CURRENT_mA);
 
 // Navigation module.
-static Navigate             g_navigate(&g_drive, MOTOR_PID_FREQUENCY, MOTOR_TICKS_PER_REV,
+static Navigate             g_navigate(&g_drive, MOTOR_TICKS_PER_REV,
                                        LEFT_WHEEL_DIAMETER, RIGHT_WHEEL_DIAMETER, WHEELBASE,
                                        THRESHOLD_DISTANCE, THRESHOLD_ANGLE, HEADING_VS_FORWARD_SPEED,
                                        HEADING_PID_Kc, HEADING_PID_Ti, HEADING_PID_Td,
