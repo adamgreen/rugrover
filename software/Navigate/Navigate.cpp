@@ -41,6 +41,7 @@ Navigate::Navigate(DifferentialDrive* pDrive, uint32_t pidFrequency_Hz, float ti
     m_distanceThreshold = distanceThreshold_mm;
     m_angleThreshold = angleThreshold_radians;
     m_headingRatio = headingRatio;
+    m_turnVelocity_mps = 0.0f;
     m_pWaypoints = NULL;
     m_waypointCount = 0;
     m_pLog = NULL;
@@ -127,6 +128,7 @@ void Navigate::update()
                 if (delta.distance < m_distanceThreshold || fabsf(angleDelta) > ninetyDegrees)
                 {
                     m_waypointState = ROTATE_TO_HEADING;
+                    m_headingPID.setControlLimits(-m_turnVelocity_mps, m_turnVelocity_mps);
                     break;
                 }
                 velocities.left = distancePortion + anglePortion;
@@ -253,6 +255,7 @@ void Navigate::setWaypointVelocities(float driveVelocity_mps, float turnVelocity
 {
     m_distancePID.setControlLimits(-driveVelocity_mps, driveVelocity_mps);
     m_headingPID.setControlLimits(-turnVelocity_mps, turnVelocity_mps);
+    m_turnVelocity_mps = turnVelocity_mps;
 }
 
 float Navigate::calculateMetersPerSecondToTicksPerSample(float wheelDiameter_mm)

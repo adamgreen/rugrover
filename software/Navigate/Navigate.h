@@ -109,6 +109,7 @@ class Navigate
         float               m_distanceThreshold;
         float               m_angleThreshold;
         float               m_headingRatio;
+        float               m_turnVelocity_mps;
         Position            m_currentPosition;
         DriveValues         m_prevTicks;
         AnglePID            m_headingPID;
