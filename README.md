@@ -96,7 +96,7 @@ When it comes to robot building, the mechanical portions are my weakest area. On
 
 **Lessons Learned:**
 * The [caster](https://www.adafruit.com/product/2942) I used on this robot is probably too large for the size of the robot. Its size makes it difficult to concentrate the mass over the caster by placing heavy things like the batteries near it on the bottom. I now see why the original RugWarrior Pro used the smaller non-swiveling ball caster. It took up less space and allowed the battery pack to be placed between the axle and the caster.
-* [Tungsten putty](https://www.amazon.com/Red-Dirt-Derby-Tungsten-Pinewood/dp/B06Y5FDLL6) is actually a soft moving liquid. The putty I placed in the cylindrical 3D printed holder at the back of the robot leaked out over time and some of it flowed out into the rear microswitch. I was able to take the robot apart and clean up the leaked putty. I designed and printed a bottom for the holder that I welded inplace with a soldering iron to contain the tungsten putty inside.
+* [Tungsten putty](https://www.amazon.com/Red-Dirt-Derby-Tungsten-Pinewood/dp/B06Y5FDLL6) is actually a soft moving liquid. The putty I placed in the cylindrical 3D printed holder at the back of the robot leaked out over time and some of it flowed out into the rear micro switch. I was able to take the robot apart and clean up the leaked putty. I designed and printed a bottom for the holder that I welded in place with a soldering iron to contain the tungsten putty inside.
 
 ## Electronics Design
 Once I had the mechanical design mostly figured out, I moved onto the design of the electronics in [KiCad](https://www.kicad.org).
@@ -159,4 +159,4 @@ Once the mechanical and electronics were far enough along I could start writing 
   * Whether any motor faults or over-current events have been detected by the motor drivers.
   * The mAh consumed by the motors since reset.
   * A flag to indicate whether the PID is running in manual or auto mode.
-* [Navigate](software/Navigate/Navigate.h): This class is used to navigate between a list of user specified waypoints. It tracks the real world location of the robot in mm based on wheel odometry. Odometry requires accurate values for the left/right wheel diameters and wheelbase between the two wheels. The Navigate class has methods to run tests to help improve the estimates for these parameters.
+* [Navigate](software/Navigate/README.md#navigate-class): Class used to navigate between a list of user specified waypoints and track the real world location of the robot based on wheel odometry.
