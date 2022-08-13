@@ -104,11 +104,11 @@ Wheel base in mm (128.186798):
 Drive (s)traight, (t)urn in place, (c)lockwise, (x)counter-clockwise: s
 ```
 * Noted the total left/right encoder ticks from the OLED or first line of the test_navigate.csv log file.
-* Used a measuring tape to determine the distance each wheel has traveled during the test.
-* The distance measurements and encoder tick counts were then entered in my [docs/wheel_diameter.numbers spreadsheet](../../docs/wheel_diameter.numbers) to determine better estimates for the actual wheel diameters.
+* Used a measuring tape to determine the distance each wheel had traveled during the test.
 
 ![Left wheel measurement](../../photos/20220811-02.jpg)
 ![Right wheel measurement](../../photos/20220811-03.jpg)
+* The distance measurements and encoder tick counts were then entered in my [docs/wheel_diameter.numbers spreadsheet](../../docs/wheel_diameter.numbers) to determine better estimates for the actual wheel diameters.
 
 ![Spreadsheet](../../photos/20220811-04.png)
 
