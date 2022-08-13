@@ -103,10 +103,10 @@
 // The frequency to be used for the motor PWM signal.
 #define MOTOR_PWM_FREQUENCY 20000
 
-// Don't allow motor current to go over 2.0A.
-#define MOTOR_MAX_CURRENT_mA    2000
+// Don't allow motor current to go over 1.75A.
+#define MOTOR_MAX_CURRENT_mA    1750
 
-/* PID contants used for the motors.
+/* PID constants used for the motors.
         ΔPV=15.500001
         ΔCO=30.000000
         Kp=0.516667
@@ -122,7 +122,7 @@
 #define SPEED_PID_Ti            0.065030f
 #define SPEED_PID_Td            0.004617f
 
-/* Contants used for the navigation heading PI loop.
+/* Constants used for the navigation heading PI loop.
     slope1 = 3.014416
     slope2 = -3.071422
     CO1 = 0.250000
@@ -196,7 +196,7 @@ static const nrf_drv_spi_t  g_spiOLED = NRF_DRV_SPI_INSTANCE(OLED_SPI_INSTANCE);
 static OLED_SH1106          g_OLED(OLED_WIDTH, OLED_HEIGHT, OLED_COLUMN_OFFSET, OLED_ROW_OFFSET,
                                    &g_spiOLED, OLED_SCK_PIN, OLED_MOSI_PIN, OLED_DC_PIN);
 
-// Analog to digitial converter object.
+// Analog to digital converter object.
 static SAADCScanner         g_adc(NRF_SAADC_RESOLUTION_12BIT, _PRIO_APP_LOWEST);
 
 // PWM peripheral instance used for the motor drivers.
