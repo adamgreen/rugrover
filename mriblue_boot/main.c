@@ -49,10 +49,10 @@
 
 
 
-// UNDONE: Currently using switch 2 which is also connected to IMU_INT by my shield.
+// UNDONE: Currently using switch 1 which is also connected to SENSORS_INT by my shield.
 // The pin connected to a switch to be pressed to enable pairing and during reset to
 // erase previous bonding information from Peer Manager.
-#define BONDING_SWITCH_PIN              NRF_GPIO_PIN_MAP(0, 14)
+#define BONDING_SWITCH_PIN              NRF_GPIO_PIN_MAP(0, 13)
 
 // The name of this device.
 #define DEVICE_NAME                     "mriblue"
