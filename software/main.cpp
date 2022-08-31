@@ -19,6 +19,11 @@
           0.27          OLED_CS_PIN             OLED Board - CS
           0.2           OLED_RESET_PIN          OLED Board - RES
     ------------------------------------------------------------------------
+          0.22          I2C_SCL_PIN             I2C Bus - SCL - Multiple Devices
+          0.23          I2C_SDA_PIN             I2C Bus - SDA - Multiple Devices
+    ------------------------------------------------------------------------
+          0.14          IMU_INT_PIN             9DoF IMU - AINT2
+    ------------------------------------------------------------------------
           0.8           LMOTOR_ENCODER_A_PIN    Left Motor Encoder A
           0.9           LMOTOR_ENCODER_B_PIN    Left Motor Encoder B
           0.10          RMOTOR_ENCODER_A_PIN    Right Motor Encoder A
@@ -46,6 +51,8 @@
 #include <OLED_SH1106/OLED_SH1106.h>
 #include <DifferentialDrive/DifferentialDrive.h>
 #include <Navigate/Navigate.h>
+#include <AdafruitPrecision9DoF/AdafruitPrecision9DoF.h>
+#include <AdafruitPrecision9DoF/OrientationKalmanFilter.h>
 
 
 
@@ -62,6 +69,24 @@
 #define OLED_CS_PIN     27
 #define OLED_DC_PIN     26
 #define OLED_RESET_PIN  2
+
+// The I2C (TWI) peripheral instance to use for communicating with the IMU and time of flight range sensors.
+// Can't be 0 as that instance is shared with the SPI peripheral used above for the OLED.
+#define I2C_INSTANCE    1
+
+// The frequency at which the I2C bus should be run. Using the fastest supported since I need to query so many sensors.
+#define I2C_FREQUENCY   NRF_TWI_FREQ_400K
+
+// The pins connected to the I2C (TWI) bus.
+#define I2C_SCL_PIN     22
+#define I2C_SDA_PIN     23
+
+// The 9DoF IMU will issue an interrupt on the interrupt 2 pin of its accelerometer/magnetometer device when next
+// sample is ready.
+#define IMU_INT_PIN     14
+
+// The sampling frequency at which the IMU should be run.
+#define IMU_SAMPLE_RATE MOTOR_PID_FREQUENCY
 
 // Pins connected to the motor quadrature encoders.
 #define LMOTOR_ENCODER_A_PIN    8
@@ -184,10 +209,79 @@ enum DebugRoutines
     DEBUG_PID_SPEED_CALIBRATE = 3,
     DEBUG_PID_HEADING_CALIBRATE = 4,
     DEBUG_PID_DISTANCE_CALIBRATE = 5,
+    DEBUG_IMU_RAW = 6,
+    DEBUG_IMU_ORIENTATION = 7,
     DEBUG_MAX
 };
 
+// Enumeration of IMU dumping types.
+enum DebugImuType
+{
+    IMU_RAW,
+    IMU_ORIENTATION
+};
 
+
+
+// 9DoF IMU Configuration / Calibration settings
+// I followed my older notes to obtain these calibration values:
+//      https://github.com/adamgreen/Ferdinand14#august-19-2014
+static SensorCalibration g_imuCalibration =
+{
+    // The initial P, Q and R covariance matrices for the Kalman filter are
+    // initialized with these values on the diagonal.
+    // P: The expected initial error in the model.
+    // Q: The expected variance the gyro measurements will have on the model's
+    //    quaternion during each iteration of the filter.
+    // R: The expected variance the accelerometer and magnetometer measurements
+    //    will have on the representative quaternion during each iteration of the
+    //    filter.
+    .initialVariance = 2.0E-4f,
+    .gyroVariance = 3.5E-10f,
+    .accelMagVariance = 2.0E-4f,
+
+    // These gyro coefficients provide the linear equation (y=ax + b) which relates
+    // sensor temperature to its bias (drift).
+    .gyroCoefficientA = {  0.8812f,  2.1546f, 0.8783f },
+    .gyroCoefficientB = { -16.804f, -9.2753f, 19.812f },
+
+    // These scale indicates LSBs (least significant bits) per degree/sec.  They
+    // should be close to the 128 LSB/dsp value from the FXAS21002C specification.
+    .gyroScale = { 128.0f, 128.0f, 128.0f },
+
+    // This vector specifies the declination correction to be applied to
+    // convert magnetic north to true north.
+    // It can be calculated here: http://www.ngdc.noaa.gov/geomag-web/#declination
+    // The 3 element vector represents: degrees,minutes,seconds
+    .declinationCorrection = { 15.0f, 54.0f, 0.0f },
+
+    // Correct for how device is mounted on robot.
+    // The 3 element vector represents: degrees,minutes,seconds
+    .mountingCorrection = { 0.0f, 0.0f, 0.0f },
+
+    // These min/max configuration values were found by rotating my sensor setup
+    // and noting min/max values seen in calibration sketch.
+    .accelMin = { -4008, -4140, -3900 },
+    .accelMax = { 4320, 3790, 4204 },
+    .magMin = { -575, -670, -865 },
+    .magMax = { 333, 288, 100 },
+
+    // Control the swizzle for each sensor (ie. map the x, y, z axis for each sensor
+    // to the x, y, z axis of the coordinate system we want to use for the output).
+    // For example: 3,-2,1 indicates that final x should be taken from the sensor's
+    //              z axis, the final y should be taken from the sensor's y axis but
+    //              after inverting its value, and the final z should be taken from
+    //              the sensor's x axis.
+    // The axis are swizzled to match a right hand axis version of that used by
+    // Processing: X points right  Y points down  Z points into the screen
+    // This accounts for the fact that a robot might want to assume an x axis that
+    // is a different axis for the sensor itself and it also accounts for the
+    // scenario where each sensor (accelerometer, magnetometer, and gyro) has their
+    // axis aligned differently.
+    .accelSwizzle = { -2, -3, 1 },
+    .magSwizzle = { -2, -3, 1 },
+    .gyroSwizzle = { -2, -3, 1 }
+};
 
 // SPIM instance used for driving the OLED.
 static const nrf_drv_spi_t  g_spiOLED = NRF_DRV_SPI_INSTANCE(OLED_SPI_INSTANCE);
@@ -195,6 +289,15 @@ static const nrf_drv_spi_t  g_spiOLED = NRF_DRV_SPI_INSTANCE(OLED_SPI_INSTANCE);
 // OLED Screen.
 static OLED_SH1106          g_OLED(OLED_WIDTH, OLED_HEIGHT, OLED_COLUMN_OFFSET, OLED_ROW_OFFSET,
                                    &g_spiOLED, OLED_SCK_PIN, OLED_MOSI_PIN, OLED_DC_PIN);
+
+// TWIM (I2C Master) instance used for driving IMU and time of flight sensors.
+static const nrf_drv_twi_t  g_i2c = NRF_DRV_TWI_INSTANCE(I2C_INSTANCE);
+
+// Adafruit's 9DoF IMU.
+static AdafruitPrecision9DoF g_imu(&g_i2c, IMU_INT_PIN, IMU_SAMPLE_RATE);
+
+// Kalman filter used to determine 3D orientation.
+static OrientationKalmanFilter g_orientation(IMU_SAMPLE_RATE, &g_imuCalibration);
 
 // Analog to digital converter object.
 static SAADCScanner         g_adc(NRF_SAADC_RESOLUTION_12BIT, _PRIO_APP_LOWEST);
@@ -220,11 +323,14 @@ static Navigate             g_navigate(&g_drive, MOTOR_TICKS_PER_REV,
                                        HEADING_PID_Kc, HEADING_PID_Ti, HEADING_PID_Td,
                                        DISTANCE_PID_Kc, DISTANCE_PID_Ti, DISTANCE_PID_Td);
 
+// Output written to this file will be sent wirelessly to an application running on the Mac.
+static FILE*                g_pDataFile = NULL;
+
 // If this global gets set to non-zero from debugger then enter debug menu.
 static int           g_dbg = 0;
 
 // Which debug routine should be executed.
-static DebugRoutines g_dbgRoutine = DEBUG_MAX;
+static DebugRoutines g_dbgRoutine = DEBUG_IMU_ORIENTATION;
 
 
 
@@ -238,6 +344,7 @@ static void sleep_us(uint32_t* pPrevTime, uint32_t delay);
 static void testPidSpeedCalibrateRoutine();
 static void testPidHeadingCalibrateRoutine();
 static void testPidDistanceCalibrateRoutine();
+static void debugImuRoutine(DebugImuType type);
 static void verifyUICRBits();
 static void hangOnError(const char* pErrorMessage);
 static void enteringDebuggerHook(void* pvContext);
@@ -248,6 +355,12 @@ static void leavingDebuggerHook(void* pvContext);
 int main(void)
 {
     verifyUICRBits();
+
+    // UNDONE: Move out into a function.
+    // Open the special file to which data can be sent wirelessly to application running on mac.
+    g_pDataFile = fdopen(0x7FFF, "w");
+    // UNDONE: May not want this to be line buffered in the future.
+    setvbuf(g_pDataFile, NULL, _IOLBF, 0);
 
     // Looks like I can just hardwire CS low and RESET high on the OLED. This will free up 2 pins.
     nrf_gpio_pin_clear(OLED_CS_PIN);
@@ -261,14 +374,44 @@ int main(void)
     g_OLED.setBrightness(16);
     g_OLED.setTextColor(1, 0);
 
-    // The software quadrature decoder uses GPIOTE so initialize it.
+    // UNDONE: Push out into its own function.
+    // Init the I2C bus used for IMU and time of flight sensors.
+    nrf_drv_twi_config_t i2cConfig =
+    {
+        .scl = I2C_SCL_PIN,
+        .sda = I2C_SDA_PIN,
+        .frequency = I2C_FREQUENCY,
+        .interrupt_priority = _PRIO_APP_LOWEST, // UNDONE: Should probably be MID.
+        .clear_bus_init = false,
+        .hold_bus_uninit = false
+    };
+    // UNDONE: Is it ok that I am running this in blocking mode with no event handler?
+    ret_code_t returnCode = nrf_drv_twi_init(&g_i2c, &i2cConfig, NULL, NULL);
+    APP_ERROR_CHECK(returnCode);
+
+    // UNDONE: Use strong sink to 0 and disable internal pull-up as we have external ones.
+#define SCL_PIN_INIT_CONF     ( (GPIO_PIN_CNF_SENSE_Disabled << GPIO_PIN_CNF_SENSE_Pos) \
+                              | (GPIO_PIN_CNF_DRIVE_H0D1     << GPIO_PIN_CNF_DRIVE_Pos) \
+                              | (GPIO_PIN_CNF_PULL_Disabled    << GPIO_PIN_CNF_PULL_Pos)  \
+                              | (GPIO_PIN_CNF_INPUT_Connect  << GPIO_PIN_CNF_INPUT_Pos) \
+                              | (GPIO_PIN_CNF_DIR_Input      << GPIO_PIN_CNF_DIR_Pos))
+#define SDA_PIN_INIT_CONF        SCL_PIN_INIT_CONF
+    NRF_GPIO->PIN_CNF[i2cConfig.scl] = SCL_PIN_INIT_CONF;
+    NRF_GPIO->PIN_CNF[i2cConfig.sda] = SDA_PIN_INIT_CONF;
+
+    nrf_drv_twi_enable(&g_i2c);
+
+    // The software quadrature decoder and IMU uses GPIOTE so initialize it now.
     nrf_drv_gpiote_init();
 
     // Run software quadrature decoder GPIOTE ISR at the highest app priority.
     NVIC_SetPriority(GPIOTE_IRQn, _PRIO_APP_HIGH);
 
+    // Get the IMU sensor up and running.
+    bool result = g_imu.init();
+    ASSERT ( result );
+
     // Initialize the ADC object which scans all of the configured ADC channels as often as possible (~200kHz).
-    bool result;
     result = g_adc.init();
     ASSERT ( result );
 
@@ -302,6 +445,12 @@ int main(void)
             case DEBUG_PID_DISTANCE_CALIBRATE:
                 testPidDistanceCalibrateRoutine();
                 break;
+            case DEBUG_IMU_RAW:
+                debugImuRoutine(IMU_RAW);
+                break;
+            case DEBUG_IMU_ORIENTATION:
+                debugImuRoutine(IMU_ORIENTATION);
+                break;
             default:
                 break;
         }
@@ -311,7 +460,9 @@ int main(void)
                                         "2. Test PID\n"
                                         "3. Run Speed PID calibration\n"
                                         "4. Run Heading PID calibration\n"
-                                        "5. Run Distance PID calibration\n", DEBUG_MAX);
+                                        "5. Run Distance PID calibration\n"
+                                        "6. Test IMU Raw\n"
+                                        "7. Test IMU Orientation\n", DEBUG_MAX);
     }
 }
 
@@ -1342,6 +1493,77 @@ static void hangOnError(const char* pErrorMessage)
     while (true)
     {
         // Loop here forever if a motor fault has been detected.
+    }
+}
+
+static void debugImuRoutine(DebugImuType type)
+{
+    // Enter main action loop.
+    const uint32_t delayms = 1000 / MOTOR_PID_FREQUENCY;
+    const uint32_t delay_us = delayms * 1000;
+    uint32_t count = 0;
+
+    // Setup the fixed heading text on the OLED.
+    g_OLED.clearScreen();
+    g_OLED.printf("Heading:\n");
+
+    g_orientation.reset();
+
+    uint32_t iteration = 0;
+    uint32_t prevDumpTime = micros();
+    while (true)
+    {
+        if (g_dbg)
+        {
+            return;
+        }
+
+        // Blocking read of the next sensor reading.
+        SensorValues sensorValues = g_imu.getRawSensorValues();
+        if (g_imu.didIoFail())
+        {
+            hangOnError("Encountered I2C I/O error during fetch of IMU sensor readings.\n");
+        }
+
+        // Run the latest sensor reading through the Kalman filter to determine orientation/heading.
+        SensorCalibratedValues calibratedValues = g_orientation.calibrateSensorValues(&sensorValues);
+        // UNDONE: The samples should have sample times in them so that I pass in below.
+        Quaternion orientation = g_orientation.getOrientation(&calibratedValues, delay_us);
+        float headingAngle = g_orientation.getHeading(&orientation);
+
+        // Send the latest readings to application running on Mac.
+        switch (type)
+        {
+            case IMU_RAW:
+                fprintf(g_pDataFile, "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%ld\n",
+                        sensorValues.accel.x, sensorValues.accel.y, sensorValues.accel.z,
+                        sensorValues.mag.x, sensorValues.mag.y, sensorValues.mag.z,
+                        sensorValues.gyro.x, sensorValues.gyro.y, sensorValues.gyro.z,
+                        sensorValues.gyroTemperature,
+                        delay_us);
+                break;
+            case IMU_ORIENTATION:
+                fprintf(g_pDataFile, "%f,%f,%f,%f,%f\n",
+                        orientation.w, orientation.x, orientation.y, orientation.z, headingAngle);
+                break;
+        }
+
+        // Display current heading on OLED.
+        g_OLED.setCursor(8*6, 0*8);  g_OLED.printf("%6.1f", RADIAN_TO_DEGREE*headingAngle);
+        g_OLED.refresh();
+
+        // Dump frame count once every 10 seconds.
+        count++;
+        uint32_t currTime = micros();
+        uint32_t elapsedTime = currTime - prevDumpTime;
+        if (elapsedTime >= 10*1000000)
+        {
+            printf("%lu\n", count);
+            prevDumpTime = currTime;
+            count = 0;
+        }
+
+        iteration++;
     }
 }
 

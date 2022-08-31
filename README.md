@@ -64,6 +64,7 @@ In addition to reading ["Mobile Robots: Inspiration to Implementation" by Joseph
 | 1 | [Rechargeable NiMH Battery Pack: 6.0 V, 2200 mAh, 3+2 AA Cells, JR Connector](https://www.pololu.com/product/2224) |
 | 2 | [Red Dirt Derby 2 oz Tungsten Putty Weights](https://www.amazon.com/Red-Dirt-Derby-Tungsten-Pinewood/dp/B06Y5FDLL6) |
 | 1 | [1/4" OD Black Latex Tubing for Bumper Skirt Standoffs](https://www.amazon.com/LATEX-TUBING-602-BLACK-10FT/dp/B074NCLZSW) |
+| 1 | [Nordic Semiconductor nRF52 Development Kit](https://www.digikey.com/en/products/detail/nordic-semiconductor-asa/NRF52-DK/5773879) |
 | X | Already owned 0805 passives, 0.1" headers, etc. |
 | X | Already owned M2, M2.5, and M3 hardware |
 

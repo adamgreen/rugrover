@@ -44,6 +44,9 @@ static void displayUsage(void)
 // Flags to be used in CommandLineParams::flags field.
 #define FLAG_VERBOSE (1 << 0)
 
+// Boolean values.
+#define TRUE 1
+#define FALSE 0
 
 
 // Command line flags are parsed into this structure.
@@ -54,13 +57,25 @@ typedef struct CommandLineParams
     uint16_t    portNumber;
 } CommandLineParams;
 
+// State of parsing out data destined for GDB from other data.
+typedef struct PacketState
+{
+    int inGdbPacket;
+    int foundDollarSign;
+    int bytesLeft;
+} PacketState;
+
+
 static CommandLineParams g_params;
 static FILE*             g_pLogFile;
 
 // The Control+C handler and workerMain both need to access these globals.
 static volatile int      g_controlCdetected;
-static int               g_listenSocket = -1;
+static volatile int      g_gdbListenSocket = -1;
+static volatile int      g_dataListenSocket = -1;
 static volatile int      g_isBleConnected = 0;
+
+static PacketState       g_packetState = { .inGdbPacket = FALSE, .foundDollarSign = FALSE, .bytesLeft = 0 };
 
 
 static int parseCommandLine(CommandLineParams* pParams, int argc, char** ppArgs);
@@ -68,9 +83,13 @@ static int parsePortNumber(CommandLineParams* pParams, int argc, char** ppArgs);
 static int parseLogFilename(CommandLineParams* pParams, int argc, char** ppArgs);
 static void controlCHandler(int arg);
 static int initListenSocket(uint16_t portNumber);
+static ssize_t splitSend(int gdbSocket, int dataSocket, const void *pBuffer, size_t length);
+static size_t findEndOfGdbData(const uint8_t* pStart, size_t length);
+static size_t findStartOfGdbData(const uint8_t* pStart, size_t length);
+static ssize_t sendOutOfBand(int socket, const uint8_t* pData, size_t length);
 static int socketHasDataToRead(int socket);
 static void logData(const char* pDirection, uint8_t* pData, int dataLength);
-static const char* escapeData(const uint8_t* pBuffer, int bufferSize);
+static const char* escapeData(const uint8_t* pBuffer, size_t bufferSize);
 static char hexDigit(uint8_t digit);
 
 
@@ -161,10 +180,12 @@ static int parseLogFilename(CommandLineParams* pParams, int argc, char** ppArgs)
 
 void workerMain(void)
 {
-    int                   result = -1;
-    int                   socket = -1;
+    int result = -1;
+    int gdbSocket = -1;
+    int dataSocket = -1;
 
     signal(SIGINT, controlCHandler);
+    signal(SIGPIPE, SIG_IGN);
 
     if (g_params.pLogFilename)
     {
@@ -176,17 +197,23 @@ void workerMain(void)
         }
     }
 
-    g_listenSocket = initListenSocket(g_params.portNumber);
-    if (g_listenSocket == -1)
+    g_gdbListenSocket = initListenSocket(g_params.portNumber);
+    if (g_gdbListenSocket == -1)
     {
-        printf("error: Failed to initialize socket. %s\n", strerror(errno));
+        printf("error: Failed to initialize socket on port %u. %s\n", g_params.portNumber, strerror(errno));
         goto Error;
     }
+
+    g_dataListenSocket = initListenSocket(g_params.portNumber+1);
+    if (g_dataListenSocket == -1)
+    {
+        printf("error: Failed to initialize socket on port %u. %s\n", g_params.portNumber+1, strerror(errno));
+        goto Error;
+    }
+
     while (!g_controlCdetected)
     {
         size_t             bytesRead;
-        struct sockaddr_in remoteAddress;
-        socklen_t          remoteAddressSize = sizeof(remoteAddress);
         uint8_t            buffer[4096];
 
         if (!g_isBleConnected)
@@ -201,22 +228,25 @@ void workerMain(void)
             printf("MRIBLUE device connected!\n");
             g_isBleConnected = 1;
         }
-        if (socket == -1)
+        if (gdbSocket == -1)
         {
+            struct sockaddr_in remoteAddress;
+            socklen_t          remoteAddressSize = sizeof(remoteAddress);
+
             printf("Waiting for GDB to connect on port %u...\n", g_params.portNumber);
-            socket = accept(g_listenSocket, (struct sockaddr*)&remoteAddress, &remoteAddressSize);
-            if (socket == -1 && errno != ECONNABORTED)
+            gdbSocket = accept(g_gdbListenSocket, (struct sockaddr*)&remoteAddress, &remoteAddressSize);
+            if (gdbSocket == -1 && errno != ECONNABORTED)
             {
                 fprintf(stderr, "error: Failed to accept TCP/IP connection. %s\n", strerror(errno));
                 goto Error;
             }
-            if (socket != -1)
+            if (gdbSocket != -1)
             {
                 printf("GDB connected!\n");
             }
         }
 
-        while (socket != -1 && g_isBleConnected && !g_controlCdetected)
+        while (gdbSocket != -1 && g_isBleConnected && !g_controlCdetected)
         {
             /* Forward data received from BLEUART to socket. */
             result = bleuartReceiveData(buffer, sizeof(buffer), &bytesRead);
@@ -229,25 +259,32 @@ void workerMain(void)
             if (bytesRead > 0)
             {
                 logData("tcp<-ble", buffer, (int)bytesRead);
-                result = send(socket, buffer, bytesRead, 0);
+                result = splitSend(gdbSocket, dataSocket, buffer, bytesRead);
                 if (result == -1)
                 {
-                    printf("TCP/IP connection lost!\n");
-                    close(socket);
-                    socket = -1;
+                    printf("TCP/IP connection to GDB lost!\n");
+                    close(gdbSocket);
+                    gdbSocket = -1;
+                    break;
+                }
+                else if (result == -2)
+                {
+                    printf("TCP/IP connection to Data Application lost!\n");
+                    close(dataSocket);
+                    dataSocket = -1;
                     break;
                 }
             }
 
             /* Forward data received from socket to BLEUART. */
-            if (socketHasDataToRead(socket))
+            if (socketHasDataToRead(gdbSocket))
             {
-                result = recv(socket, buffer, sizeof(buffer), 0);
+                result = recv(gdbSocket, buffer, sizeof(buffer), 0);
                 if (result < 1)
                 {
                     printf("TCP/IP connection lost!\n");
-                    close(socket);
-                    socket = -1;
+                    close(gdbSocket);
+                    gdbSocket = -1;
                     break;
                 }
                 logData("tcp->ble", buffer, result);
@@ -264,6 +301,24 @@ void workerMain(void)
                 }
             }
 
+            if (dataSocket == -1 && socketHasDataToRead(g_dataListenSocket))
+            {
+                struct sockaddr_in remoteAddress;
+                socklen_t          remoteAddressSize = sizeof(remoteAddress);
+
+                printf("Waiting for Data Application to connect on port %u...\n", g_params.portNumber+1);
+                dataSocket = accept(g_dataListenSocket, (struct sockaddr*)&remoteAddress, &remoteAddressSize);
+                if (dataSocket == -1 && errno != ECONNABORTED)
+                {
+                    fprintf(stderr, "error: Failed to accept TCP/IP connection. %s\n", strerror(errno));
+                    goto Error;
+                }
+                if (dataSocket != -1)
+                {
+                    printf("Data Application connected!\n");
+                }
+            }
+
             /* This is a little more time than it takes to transmit one byte at 115200. */
             usleep(100);
         }
@@ -271,10 +326,12 @@ void workerMain(void)
 
 Error:
     printf("Shutting down\n");
-    if (socket != -1)
-        close (socket);
-    if (g_listenSocket != -1)
-        close(g_listenSocket);
+    if (gdbSocket != -1)
+        close (gdbSocket);
+    if (g_dataListenSocket != -1)
+        close(g_dataListenSocket);
+    if (g_gdbListenSocket != -1)
+        close(g_gdbListenSocket);
     if (g_pLogFile)
         fclose(g_pLogFile);
     bleuartDisconnect();
@@ -283,10 +340,16 @@ Error:
 static void controlCHandler(int arg)
 {
     g_controlCdetected = 1;
-    if (g_listenSocket != -1)
+    if (g_gdbListenSocket != -1)
     {
-        int listenSocket = g_listenSocket;
-        *(volatile int*)&g_listenSocket = -1;
+        int listenSocket = g_gdbListenSocket;
+        g_gdbListenSocket = -1;
+        close(listenSocket);
+    }
+    if (g_dataListenSocket != -1)
+    {
+        int listenSocket = g_dataListenSocket;
+        g_dataListenSocket = -1;
         close(listenSocket);
     }
     if (!g_isBleConnected)
@@ -327,6 +390,155 @@ Error:
     return -1;
 }
 
+static ssize_t splitSend(int gdbSocket, int dataSocket, const void *pBuffer, size_t length)
+{
+    const uint8_t* pCurr = (const uint8_t*)pBuffer;
+    size_t bytesLeft = length;
+
+    while (bytesLeft > 0)
+    {
+        size_t len = 0;
+
+        if (g_packetState.inGdbPacket)
+        {
+            len = findEndOfGdbData(pCurr, bytesLeft);
+            if (len > 0)
+            {
+                ssize_t result = send(gdbSocket, pCurr, len, 0);
+                if (result == -1)
+                {
+                    return -1;
+                }
+            }
+        }
+        else
+        {
+            len = findStartOfGdbData(pCurr, bytesLeft);
+            if (len > 0 && dataSocket != -1)
+            {
+                ssize_t result = sendOutOfBand(dataSocket, pCurr, len);
+                if (result == -1)
+                {
+                    return -2;
+                }
+            }
+        }
+        pCurr += len;
+        bytesLeft -= len;
+    }
+
+    return length;
+}
+
+static size_t findEndOfGdbData(const uint8_t* pStart, size_t length)
+{
+    const uint8_t* pCurr = pStart;
+
+    while (length-- > 0)
+    {
+        char ch = *pCurr;
+
+        if (!g_packetState.foundDollarSign)
+        {
+            if (ch == '$')
+            {
+                g_packetState.bytesLeft = 0;
+                g_packetState.foundDollarSign = TRUE;
+            }
+            else if (ch != '+' && ch != '-')
+            {
+                g_packetState.bytesLeft = 0;
+                g_packetState.inGdbPacket = FALSE;
+                break;
+            }
+        }
+        else if (g_packetState.bytesLeft == 0 && ch == '#')
+        {
+            g_packetState.bytesLeft = 2;
+        }
+        else if (g_packetState.bytesLeft > 0)
+        {
+            g_packetState.bytesLeft--;
+            if (g_packetState.bytesLeft == 0)
+            {
+                g_packetState.foundDollarSign = FALSE;
+            }
+        }
+
+        pCurr++;
+    }
+
+    return pCurr - pStart;
+}
+
+static size_t findStartOfGdbData(const uint8_t* pStart, size_t length)
+{
+    const uint8_t* pCurr = pStart;
+
+    while (length-- > 0)
+    {
+        char ch = *pCurr;
+
+        if (ch == '+' || ch == '-')
+        {
+            g_packetState.bytesLeft = 0;
+            g_packetState.inGdbPacket = TRUE;
+            g_packetState.foundDollarSign = FALSE;
+            break;
+        }
+        else if (ch == '$')
+        {
+            g_packetState.bytesLeft = 0;
+            g_packetState.inGdbPacket = TRUE;
+            g_packetState.foundDollarSign = TRUE;
+            break;
+        }
+
+        pCurr++;
+    }
+
+    return pCurr - pStart;
+}
+
+static ssize_t sendOutOfBand(int socket, const uint8_t* pSrc, size_t length)
+{
+    // Unescape the out of band data which starts with a '}' prefix.
+    static int lastByteWasPrefix = FALSE;
+    static uint8_t buffer[64*1024];
+    uint8_t* pDest = buffer;
+    while (length-- && (pDest - buffer) < sizeof(buffer))
+    {
+        uint8_t byte = *pSrc++;
+        if (!lastByteWasPrefix && byte == '}')
+        {
+            lastByteWasPrefix = TRUE;
+        }
+        else if (lastByteWasPrefix)
+        {
+            *pDest++ = byte ^ 0x20;
+            lastByteWasPrefix = FALSE;
+        }
+        else
+        {
+            *pDest++ = byte;
+            lastByteWasPrefix = FALSE;
+        }
+    }
+    if (pDest-buffer >= sizeof(buffer))
+    {
+        printf("**MRIBLUE OVERFLOW**\n");
+        return -2;
+    }
+
+    ssize_t result = send(socket, buffer, pDest-buffer, 0);
+    if (result == -1)
+    {
+        return -1;
+    }
+
+    return 0;
+}
+
 static int socketHasDataToRead(int socket)
 {
     int            result = -1;
@@ -361,7 +573,7 @@ static void logData(const char* pDirection, uint8_t* pData, int dataLength)
     }
 }
 
-static const char* escapeData(const uint8_t* pBuffer, int bufferSize)
+static const char* escapeData(const uint8_t* pBuffer, size_t bufferSize)
 {
     static char escapedBuffer[1024*1024];
     char* pDest = escapedBuffer;

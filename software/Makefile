@@ -25,6 +25,11 @@ SRC_FILES += \
   $(PROJ_DIR)/GlobalTimer/GlobalTimer.cpp \
   $(PROJ_DIR)/DifferentialDrive/DifferentialDrive.cpp \
   $(PROJ_DIR)/Navigate/Navigate.cpp \
+  $(PROJ_DIR)/AdafruitPrecision9DoF/SensorBase.cpp \
+  $(PROJ_DIR)/AdafruitPrecision9DoF/FXAS21002C.cpp \
+  $(PROJ_DIR)/AdafruitPrecision9DoF/FXOS8700CQ.cpp \
+  $(PROJ_DIR)/AdafruitPrecision9DoF/AdafruitPrecision9DoF.cpp \
+  $(PROJ_DIR)/AdafruitPrecision9DoF/OrientationKalmanFilter.cpp \
   $(SDK_ROOT)/components/libraries/log/src/nrf_log_backend_serial.c \
   $(SDK_ROOT)/components/libraries/log/src/nrf_log_frontend.c \
   $(SDK_ROOT)/components/libraries/util/app_error.c \
@@ -51,6 +56,7 @@ SRC_FILES += \
   $(SDK_ROOT)/components/drivers_nrf/qdec/nrf_drv_qdec.c \
   $(SDK_ROOT)/components/drivers_nrf/pwm/nrf_drv_pwm.c \
   $(SDK_ROOT)/components/drivers_nrf/hal/nrf_saadc.c \
+  $(SDK_ROOT)/components/drivers_nrf/twi_master/nrf_drv_twi.c \
 
 # Add in MRI debug monitor to get the newlib stubs contained within.
 LIB_FILES += $(MRI_PATH)/lib/armv7-m/libmri_nrf52dk_fpu_hard.a
@@ -139,7 +145,7 @@ INC_FOLDERS += \
   $(SDK_ROOT)/components/libraries/simple_timer \
 
 # Libraries common to all targets
-LIB_FILES +=
+LIB_FILES += $(SDK_ROOT)/components/toolchain/cmsis/dsp/GCC/libarm_cortexM4lf_math.a
 
 # C flags common to all targets
 CFLAGS += -D__HEAP_SIZE=0
@@ -161,6 +167,7 @@ CFLAGS += -DSWI_DISABLE0
 CFLAGS += -DNRF52_PAN_20
 CFLAGS += -DNRF52_PAN_55
 CFLAGS += -DS132
+CFLAGS += -DARM_MATH_CM4
 CFLAGS += -mcpu=cortex-m4
 CFLAGS += -mthumb -mabi=aapcs
 CFLAGS +=  -Wall -Werror -O3 -g3
@@ -174,6 +181,8 @@ CFLAGS += -fno-inline
 
 # C++ flags common to all targets
 CXXFLAGS += -fno-rtti
+# Don't wrap function static object instantiation in guards since we are single threaded.
+CXXFLAGS += -fno-threadsafe-statics
 
 # Assembler flags common to all targets
 ASMFLAGS += -x assembler-with-cpp

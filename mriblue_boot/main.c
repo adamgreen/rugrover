@@ -1360,6 +1360,8 @@ static uint32_t  handleFlashEraseCommand(Buffer* pBuffer);
 static __throws void throwIfAddressAndLengthNot4kAligned(AddressLength* pAddressLength);
 static bool is4kAligned(uint32_t value);
 static __throws void throwIfAttemptingToFlashSoftDeviceOrBootloader(AddressLength* pAddressLength);
+static void disableApplicationInterrupts();
+static bool hasAppPriority(IRQn_Type irq);
 static uint32_t eraseFlashPages(uint32_t startPage, uint32_t pageCount);
 static uint32_t eraseFlashPage(uint32_t page);
 static uint32_t waitForFlashOperationToCompleteAndCheckForError(void);
@@ -1451,6 +1453,8 @@ static uint32_t  handleFlashEraseCommand(Buffer* pBuffer)
         return HANDLER_RETURN_HANDLED;
     }
 
+    disableApplicationInterrupts();
+
     uint32_t startPage = addressLength.address / FLASH_PAGE_SIZE;
     uint32_t pageCount = addressLength.length / FLASH_PAGE_SIZE;
     uint32_t errorCode = eraseFlashPages(startPage, pageCount);
@@ -1482,6 +1486,31 @@ static __throws void throwIfAttemptingToFlashSoftDeviceOrBootloader(AddressLengt
     if (pAddressLength->address < APP_START)
     {
         __throw(invalidArgumentException);
+    }
+}
+
+static void disableApplicationInterrupts()
+{
+    for (IRQn_Type irq = POWER_CLOCK_IRQn ; irq <= FPU_IRQn ; irq++)
+    {
+        if (__NVIC_GetEnableIRQ(irq) && hasAppPriority(irq))
+        {
+            __NVIC_DisableIRQ(irq);
+        }
+    }
+}
+
+static bool hasAppPriority(IRQn_Type irq)
+{
+    uint8_t irqPriority = mriCortexMGetPriority(irq);
+    switch (irqPriority)
+    {
+        case _PRIO_APP_HIGH:
+        case _PRIO_APP_MID:
+        case _PRIO_APP_LOWEST:
+            return true;
+        default:
+            return false;
     }
 }
 
@@ -2102,16 +2131,74 @@ void  __wrap_mriPlatform_ClearHardwareWatchpoint(uint32_t address, uint32_t size
 // *********************************************************************************************************************
 //  Wrap of the mriSemihost_WriteToFileOrConsole function to provide a faster but less reliable way of writing to stdout.
 // *********************************************************************************************************************
+int __real_mriSemihost_WriteToFileOrConsole(const TransferParameters* pParameters);
+static int writeBytesOutsideOfGdbPacket(const TransferParameters* pParameters);
+static int needsToBeEscaped(char ch);
+static char escapeCurrByte(char ch);
+static int writeBytesToGdbStdOut(const TransferParameters* pParameters);
+
 int __wrap_mriSemihost_WriteToFileOrConsole(const TransferParameters* pParameters)
 {
-    int __real_mriSemihost_WriteToFileOrConsole(const TransferParameters* pParameters);
-
     const uint32_t STDOUT_FILE_NO = 1;
-    if (pParameters->fileDescriptor != STDOUT_FILE_NO)
+    const uint32_t SPECIAL_FILE_NO = 0x7FFF;
+    uint32_t fileDescriptor = pParameters->fileDescriptor;
+    if (fileDescriptor == SPECIAL_FILE_NO)
+    {
+        return writeBytesOutsideOfGdbPacket(pParameters);
+    }
+    else if (fileDescriptor == STDOUT_FILE_NO)
+    {
+        return writeBytesToGdbStdOut(pParameters);
+    }
+    else
     {
         return __real_mriSemihost_WriteToFileOrConsole(pParameters);
     }
+}
 
+static int writeBytesOutsideOfGdbPacket(const TransferParameters* pParameters)
+{
+    const char escapeByte = '}';
+    const char* pBuffer = (const char*)pParameters->bufferAddress;
+    size_t length = pParameters->bufferSize;
+    size_t i;
+    for (i = 0 ; i < length ; i++)
+    {
+        uint8_t curr = *pBuffer++;
+        if (needsToBeEscaped(curr))
+        {
+            Platform_CommSendChar(escapeByte);
+            Platform_CommSendChar(escapeCurrByte(curr));
+        }
+        else
+        {
+            Platform_CommSendChar(curr);
+        }
+    }
+
+    SetSemihostReturnValues(length, 0);
+    FlagSemihostCallAsHandled();
+    if (g_controlC)
+    {
+        g_controlC = false;
+        SetSignalValue(SIGINT);
+        return 0;
+    }
+    return 1;
+}
+
+static int needsToBeEscaped(char ch)
+{
+    return (ch == '$' || ch == '#' || ch == '}' || ch == '*' || ch == '+' || ch == '-');
+}
+
+static char escapeCurrByte(char ch)
+{
+    return ch ^ 0x20;
+}
+
+static int writeBytesToGdbStdOut(const TransferParameters* pParameters)
+{
     // Do extra work when writing to STDOUT so that MRI won't block waiting for ACK back from GDB.
     nrf_atomic_u32_add(&g_ignoreAckCount, 1);
     nrf_atomic_u32_add(&g_fakeAckCount, 1);

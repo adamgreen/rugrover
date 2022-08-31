@@ -44,3 +44,6 @@ _CodeSignature/
 # Output of macos build.
 mriblue/mriblue
 obj/
+
+# VSCode editor files.
+.vscode/
