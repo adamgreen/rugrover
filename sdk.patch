@@ -204,6 +204,51 @@ diff -Naurb nrfSDK2/components/drivers_nrf/spi_master/nrf_drv_spi.h nrfSDK/compo
  
  
  /**
+diff -Naurb nrfSDK2/components/drivers_nrf/twi_master/nrf_drv_twi.c nrfSDK/components/drivers_nrf/twi_master/nrf_drv_twi.c
+--- nrfSDK2/components/drivers_nrf/twi_master/nrf_drv_twi.c	2017-05-05 14:10:54.000000000 -0700
++++ nrfSDK/components/drivers_nrf/twi_master/nrf_drv_twi.c	2022-08-30 23:55:08.000000000 -0700
+@@ -833,10 +833,14 @@
+                 NRF_LOG_DEBUG("TWIM: Event: %s.\r\n", (uint32_t)EVT_TO_STR_TWIM(NRF_TWIM_EVENT_ERROR)); 
+                 nrf_twim_event_clear(p_twim, NRF_TWIM_EVENT_ERROR);
+                 nrf_twim_task_trigger(p_twim, NRF_TWIM_TASK_RESUME);
++                if (!nrf_twim_event_check(p_twim, NRF_TWIM_EVENT_STOPPED))
++                {
++                    /* If last byte of write was the one NAKed then STOP has already been requested via shortcut. */
+                 nrf_twim_task_trigger(p_twim, NRF_TWIM_TASK_STOP);
+                 evt_to_wait = NRF_TWIM_EVENT_STOPPED;
+             }
+         }
++        }
+ 
+         uint32_t errorsrc =  nrf_twim_errorsrc_get_and_clear(p_twim);
+ 
+diff -Naurb nrfSDK2/components/drivers_nrf/twi_master/nrf_drv_twi.h nrfSDK/components/drivers_nrf/twi_master/nrf_drv_twi.h
+--- nrfSDK2/components/drivers_nrf/twi_master/nrf_drv_twi.h	2017-05-05 14:10:54.000000000 -0700
++++ nrfSDK/components/drivers_nrf/twi_master/nrf_drv_twi.h	2022-08-15 17:22:54.000000000 -0700
+@@ -78,9 +78,9 @@
+ 
+ #if defined(TWIM_IN_USE)
+     #define NRF_DRV_TWI_PERIPHERAL(id)           \
+-        (CONCAT_3(TWI, id, _USE_EASY_DMA) == 1 ? \
++        (NRF_TWI_Type*)((CONCAT_3(TWI, id, _USE_EASY_DMA) == 1 ? \
+             (void *)CONCAT_2(NRF_TWIM, id)       \
+-          : (void *)CONCAT_2(NRF_TWI, id))
++          : (void *)CONCAT_2(NRF_TWI, id)))
+ #else
+     #define NRF_DRV_TWI_PERIPHERAL(id)  (void *)CONCAT_2(NRF_TWI, id)
+ #endif
+@@ -93,10 +93,10 @@
+ {
+     union
+     {
++        NRF_TWI_Type  * p_twi;  ///< Pointer to a structure with TWI registers.
+ #ifdef TWIM_IN_USE
+         NRF_TWIM_Type * p_twim; ///< Pointer to a structure with TWIM registers.
+ #endif
+-        NRF_TWI_Type  * p_twi;  ///< Pointer to a structure with TWI registers.
+     } reg;
+     uint8_t drv_inst_idx; ///< Driver instance index.
+     bool    use_easy_dma; ///< True if the peripheral with EasyDMA (TWIM) shall be used.
 diff -Naurb nrfSDK2/components/softdevice/s130/headers/nrf_svc.h nrfSDK/components/softdevice/s130/headers/nrf_svc.h
 --- nrfSDK2/components/softdevice/s130/headers/nrf_svc.h	2016-04-20 15:57:06.000000000 -0700
 +++ nrfSDK/components/softdevice/s130/headers/nrf_svc.h	2022-04-27 00:50:11.000000000 -0700
@@ -252,3 +297,24 @@ diff -Naurb nrfSDK2/components/toolchain/gcc/Makefile.posix nrfSDK/components/to
 +GNU_INSTALL_ROOT := $(patsubst %/bin/,%,$(dir $(shell which arm-none-eabi-gcc)))
 +GNU_VERSION := 7.3.1
  GNU_PREFIX := arm-none-eabi
+diff -Naurb nrfSDK2/components/toolchain/gcc/nrf5x_common.ld nrfSDK/components/toolchain/gcc/nrf5x_common.ld
+--- nrfSDK2/components/toolchain/gcc/nrf5x_common.ld	2017-05-05 13:10:52.000000000 -0700
++++ nrfSDK/components/toolchain/gcc/nrf5x_common.ld	2022-09-04 22:19:04.000000000 -0700
+@@ -89,7 +89,7 @@
+ 
+     __etext = .;
+ 
+-    .data : AT (__etext)
++    .data :
+     {
+         __data_start__ = .;
+         *(vtable)
+@@ -121,7 +121,7 @@
+         /* All data end */
+         __data_end__ = .;
+ 
+-    } > RAM
++    } > RAM AT > FLASH
+ 
+     .bss :
+     {
