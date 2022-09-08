@@ -30,6 +30,7 @@ SRC_FILES += \
   $(PROJ_DIR)/AdafruitPrecision9DoF/FXOS8700CQ.cpp \
   $(PROJ_DIR)/AdafruitPrecision9DoF/AdafruitPrecision9DoF.cpp \
   $(PROJ_DIR)/AdafruitPrecision9DoF/OrientationKalmanFilter.cpp \
+  $(PROJ_DIR)/I2CAsync/I2CAsync.cpp \
   $(SDK_ROOT)/components/libraries/log/src/nrf_log_backend_serial.c \
   $(SDK_ROOT)/components/libraries/log/src/nrf_log_frontend.c \
   $(SDK_ROOT)/components/libraries/util/app_error.c \

@@ -17,16 +17,25 @@
 #include "SensorBase.h"
 
 
-class FXAS21002C : public SensorBase
+class FXAS21002C : protected SensorBase
 {
 public:
-    FXAS21002C(int32_t sampleRate_Hz, nrf_drv_twi_t const * pTwiInstance, int address = 0x21);
+    FXAS21002C(int32_t sampleRate_Hz, I2CAsync* pI2CAsync, int address = 0x21);
     bool init();
 
-    bool getVector(Vector<int16_t>* pVector, int16_t* pTemperature);
+    // There will be 2 I2C transfers completed to pNotify interface if supplied.
+    void getVector(Vector<int16_t>* pVector, int16_t* pTemperature, II2CNotification* pNotify);
 
 protected:
+    // Method called in when a I2C operation is completed.
+    virtual void opCompleted(bool wasSuccessful, uint32_t index);
+
     bool initGyro();
+
+    Vector<int16_t>* m_pVector;
+    int16_t*         m_pTemperature;
+    char             m_bigEndianData[sizeof(int16_t)*3];
+    int8_t           m_temp;
 };
 
 #endif /* FXAS21002C_H_ */

@@ -10,6 +10,8 @@
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 */
+#include <nrf_assert.h>
+#include <nrf_atomic.h>
 #include <nrf_delay.h>
 #include "FXAS21002C.h"
 
@@ -78,9 +80,11 @@
 #define READY               (1 << 0)
 
 
-FXAS21002C::FXAS21002C(int32_t sampleRate_Hz, nrf_drv_twi_t const * pTwiInstance, int address /* = 0x21 */)
-: SensorBase(sampleRate_Hz, pTwiInstance, address)
+FXAS21002C::FXAS21002C(int32_t sampleRate_Hz, I2CAsync* pI2CAsync, int address /* = 0x21 */)
+: SensorBase(sampleRate_Hz, pI2CAsync, address)
 {
+    m_pVector = NULL;
+    m_pTemperature = NULL;
 }
 
 bool FXAS21002C::init()
@@ -139,29 +143,58 @@ bool FXAS21002C::initGyro()
     return true;
 }
 
-bool FXAS21002C::getVector(Vector<int16_t>* pVector, int16_t* pTemperature)
+void FXAS21002C::getVector(Vector<int16_t>* pVector, int16_t* pTemperature, II2CNotification* pNotify)
 {
-    bool result = false;
-    char bigEndianData[2*3];
+    // Can only be called in async mode.
+    ASSERT ( pNotify != NULL );
 
-    result = readRegisters(OUT_X_MSB, bigEndianData, sizeof(bigEndianData));
+    // Setup for members to track this async request.
+    m_pNotify = pNotify;
+    m_pVector = pVector;
+    m_pTemperature = pTemperature;
+
+    // Read the latest gyro x, y, z measurements.
+    bool result = readRegisters(OUT_X_MSB, m_bigEndianData, sizeof(m_bigEndianData), this);
     if (!result)
     {
-        return result;
+        notify(NULL);
     }
 
-    // Data returned is big endian so byte swap.
-    pVector->x = (bigEndianData[0] << 8) | bigEndianData[1];
-    pVector->y = (bigEndianData[2] << 8) | bigEndianData[3];
-    pVector->z = (bigEndianData[4] << 8) | bigEndianData[5];
-
-    int8_t temp;
-    result = readRegister(TEMP, (uint8_t*)&temp);
+    // Read the latest temperature measurement.
+    result = readRegister(TEMP, (uint8_t*)&m_temp, this);
     if (!result)
     {
-        return result;
+        notify(NULL);
     }
-    *pTemperature = temp;
+}
 
-    return true;
+void FXAS21002C::opCompleted(bool wasSuccessful, uint32_t index)
+{
+    // Don't populate data to caller's buffers if the operation failed.
+    if (wasSuccessful)
+    {
+        switch (index % 2)
+        {
+            case 1:
+                // Data returned is big endian so byte swap.
+                m_pVector->x = (m_bigEndianData[0] << 8) | m_bigEndianData[1];
+                m_pVector->y = (m_bigEndianData[2] << 8) | m_bigEndianData[3];
+                m_pVector->z = (m_bigEndianData[4] << 8) | m_bigEndianData[5];
+                break;
+            case 0:
+                // Just needs a simple copy for this 1-byte transfer.
+                *m_pTemperature = m_temp;
+                break;
+        }
+    }
+
+    // Ping caller's callback if the overall transfer is now completed.
+    if ((index % 2) == 0)
+    {
+        uint32_t errorCount = m_errorCount;
+        nrf_atomic_u32_sub(&m_errorCount, errorCount);
+        ASSERT ( errorCount <= 2 );
+
+        m_pNotify->notify(errorCount == 0);
+    }
 }

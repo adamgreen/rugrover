@@ -10,37 +10,51 @@
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 */
+#include <nrf_atomic.h>
 #include "SensorBase.h"
 
 
-SensorBase::SensorBase(int32_t sampleRate_Hz, nrf_drv_twi_t const * pTwiInstance, uint8_t address)
+SensorBase::SensorBase(int32_t sampleRate_Hz, I2CAsync* pI2CAsync, uint8_t address)
 {
-    m_pI2C = pTwiInstance;
+    m_pI2C = pI2CAsync;
+    m_pNotify = NULL;
     m_address = address;
+    m_ioIndex = 0;
     m_sampleRate_Hz = sampleRate_Hz;
+    m_errorCount = 0;
 }
 
-bool SensorBase::writeRegister(uint8_t registerAddress, uint8_t value)
+bool SensorBase::writeRegister(uint8_t registerAddress, uint8_t value, ITWIMNotification* pNotify /*= NULL*/)
 {
-    uint8_t dataToSend[2] = { registerAddress, value };
-
-    ret_code_t result = nrf_drv_twi_tx(m_pI2C, m_address, dataToSend, sizeof(dataToSend), false);
-    return result == NRF_SUCCESS;
+    return m_pI2C->writeRegister(m_address, registerAddress, value, pNotify);
 }
 
-bool SensorBase::readRegister(uint8_t registerAddress, uint8_t* pBuffer)
+bool SensorBase::readRegister(uint8_t registerAddress, uint8_t* pBuffer, ITWIMNotification* pNotify /*= NULL*/)
 {
-    return readRegisters(registerAddress, pBuffer, sizeof(*pBuffer));
+    return readRegisters(registerAddress, pBuffer, sizeof(*pBuffer), pNotify);
 }
 
-bool SensorBase::readRegisters(uint8_t registerAddress, void* pBuffer, size_t bufferSize)
+bool SensorBase::readRegisters(uint8_t registerAddress, void* pBuffer, size_t bufferSize, ITWIMNotification* pNotify /*= NULL*/)
 {
-    ret_code_t result = nrf_drv_twi_tx(m_pI2C, m_address, &registerAddress, sizeof(registerAddress), true);
-    if (result != NRF_SUCCESS)
+    return m_pI2C->readRegisters(m_address, registerAddress, pBuffer, bufferSize, pNotify);
+}
+
+// ITWIMNotification methods.
+void SensorBase::notify(nrf_drv_twi_evt_t const * pEvent)
+{
+    bool opWasSuccessful = true;
+
+    // Code assumes that the overall operation was successful unless one of the I2C operations gets an error.
+    // NOTE: pEvent == NULL is the way that getVectors() calls this function when it fails to queue up an I/O.
+    if (pEvent == NULL || pEvent->type != NRF_DRV_TWI_EVT_DONE)
     {
-        return false;
+        nrf_atomic_u32_add(&m_errorCount, 1);
+        opWasSuccessful = false;
     }
 
-    result = nrf_drv_twi_rx(m_pI2C, m_address, (uint8_t*)pBuffer, bufferSize);
-    return result == NRF_SUCCESS;
+    // Update I2C transfer count.
+    uint32_t newIndex = nrf_atomic_u32_add(&m_ioIndex, 1);
+
+    // Let sub-class do whatever is appropriate for the I/O that just completed.
+    opCompleted(opWasSuccessful, newIndex);
 }

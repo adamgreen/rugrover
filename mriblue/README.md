@@ -14,6 +14,7 @@ This was one of the yak shaving projects I got sidetracked with at the beginning
 * It provides wireless connectivity using the built-in BLE capabilities of the nRF52 microcontroller.
 * No extra debug hardware is required. It is a monitor which runs directly on the nRF52 microcontroller being debugged.
 * High priority code can't be debugged but if a crash should occur in such code, a crash dump will be generated and placed in FLASH by mriblue instead. Once the dump has been saved away, the device will reset and mriblue will automatically come up in crash dump debugging mode so that GDB can use the dump to query the state of the device at the time of the crash.
+* It multiplexes GDB packets and binary application data over the same BLE connection.
 * It is open source.
 
 ## mriblue Monitor Commands
@@ -47,7 +48,7 @@ The setup for my mriblue project, shown above, shares some similarities with the
 * It too has a program (only available for macOS) which runs on the same computer as GDB:
   * It is called [mriblue](../mriblue/).
   * GDB also communicates with it over TCP/IP, on port 3333 by default.
-  * Unlike OpenOCD, it doesn't have any knowledge of the GDB remote debug protocol. It is just a bridge between TCP/IP and BLE. It could be used to bridge serial traffic from BLE to TCP/IP for any application except that it is explicitly written to find and connect to devices running the mriblue_boot bootloader.
+  * ~~Unlike OpenOCD, it doesn't have any knowledge of the GDB remote debug protocol. It is just a bridge between TCP/IP and BLE. It could be used to bridge serial traffic from BLE to TCP/IP for any application except that it is explicitly written to find and connect to devices running the mriblue_boot bootloader.~~ It only knows enough about the GDB packet format to send such packets to GDB's socket, on port 3333. It sends any binary data found outside of these GDB packets to another socket, on port 3334 by default. Applications can then be written for the Mac to connect to this socket to visualize and/or log the data. The format of this data is more compact than that found within GDB packets (usually 50% smaller).
 * Unlike a typical OpenOCD setup, mriblue requires no special debug hardware. The code which implements the GDB remote debug protocol and talks with the debug access port on the Cortex-M4F core is all contained in the [mriblue_boot bootloader](../mriblue_boot/) which runs directly on the nRF52832 microcontroller alongside the robot's firmware. The next couple of sections will give an overview of how it accomplishes this by sharing FLASH memory and CPU cycles via the NVIC's prioritized interrupts.
 
 ## mriblue_boot FLASH Memory Layout

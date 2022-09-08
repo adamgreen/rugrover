@@ -13,11 +13,14 @@
 #ifndef ADAFRUIT_PRECISION_9DOF_H_
 #define ADAFRUIT_PRECISION_9DOF_H_
 
+#include <nrf_atomic.h>
 #include <nrf_drv_gpiote.h>
+#include "I2CAsync/I2CAsync.h"
 #include "FXOS8700CQ.h"
 #include "FXAS21002C.h"
 #include "Vector.h"
 
+// UNDONE: Could add sample time to this struct.
 struct SensorValues
 {
     Vector<int16_t> accel;
@@ -28,27 +31,37 @@ struct SensorValues
 
 
 
-class AdafruitPrecision9DoF
+class AdafruitPrecision9DoF : protected II2CNotification
 {
 public:
-    AdafruitPrecision9DoF(nrf_drv_twi_t const * pTwiInstance, uint8_t int1Pin, int32_t sampleRate_Hz);
+    AdafruitPrecision9DoF(I2CAsync* pI2CAsync, uint8_t int1Pin, int32_t sampleRate_Hz);
 
     bool init();
 
-    bool                   wouldBlock() { return m_lastSample == m_currentSample; }
-    SensorValues           getRawSensorValues();
-    int   didIoFail() { return m_failedIsrIo > 0; }
+    bool            wouldBlock() { return m_lastSample == m_currentSample; }
+    SensorValues    getRawSensorValues();
+    bool            didIoFail()
+    {
+        uint32_t failedIsrIo = m_failedIsrIo;
+        nrf_atomic_u32_sub(&m_failedIsrIo, failedIsrIo);
+        return failedIsrIo > 0;
+    }
 
 protected:
+    // II2CNotification method.
+    virtual void notify(bool wasSuccessful);
+
     bool         installInterruptOnFallingEdge(uint8_t pin);
     static void  staticInterruptHandler(nrf_drv_gpiote_pin_t pin, nrf_gpiote_polarity_t action);
     void         interruptHandler();
+    void         waitForFirstIoToComplete();
 
     FXOS8700CQ              m_accelMag;
     FXAS21002C              m_gyro;
     volatile uint32_t       m_currentSample;
     volatile uint32_t       m_failedIsrIo;
     uint32_t                m_lastSample;
+    volatile uint32_t       m_ioIndex;
     int32_t                 m_sampleRate_Hz;
     SensorValues            m_sensorValues;
     uint8_t                 m_int1Pin;

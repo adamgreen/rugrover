@@ -10,6 +10,7 @@
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 */
+#include <nrf_assert.h>
 #include <nrf_delay.h>
 #include "FXOS8700CQ.h"
 
@@ -247,9 +248,11 @@
 #define M_RST_CNT_DISABLED  3
 
 
-FXOS8700CQ::FXOS8700CQ(int32_t sampleRate_Hz, nrf_drv_twi_t const * pTwiInstance, int address /* = 0x1F */)
-: SensorBase(sampleRate_Hz, pTwiInstance, address)
+FXOS8700CQ::FXOS8700CQ(int32_t sampleRate_Hz, I2CAsync* pI2CAsync, int address /* = 0x1F */)
+: SensorBase(sampleRate_Hz, pI2CAsync, address)
 {
+    m_pAccelVector = NULL;
+    m_pMagVector = NULL;
 }
 
 bool FXOS8700CQ::init()
@@ -344,31 +347,44 @@ bool FXOS8700CQ::initAccelerometer(int32_t sampleRateHz)
     return true;
 }
 
-bool FXOS8700CQ::getVectors(Vector<int16_t>* pAccelVector, Vector<int16_t>* pMagVector)
+void FXOS8700CQ::getVectors(Vector<int16_t>* pAccelVector, Vector<int16_t>* pMagVector, II2CNotification* pNotify)
 {
-    // Need enough space for 3-axis of magnetometer and accelerometer readings (16-bits per axis).
-    uint8_t buffer[2*(3+3)];
+    // Can only be called in async mode.
+    ASSERT ( pNotify != NULL );
+
+    // Setup for members to track this async request.
+    m_pNotify = pNotify;
+    m_pAccelVector = pAccelVector;
+    m_pMagVector = pMagVector;
 
     // Start burst read at M_OUT_X_MSB and read all 6-axis values.
-    bool result = readRegisters(M_OUT_X_MSB, buffer, sizeof(buffer));
+    bool result = readRegisters(M_OUT_X_MSB, m_buffer, sizeof(m_buffer), this);
     if (!result)
     {
-        return result;
+        notify(NULL);
+    }
+}
+
+void FXOS8700CQ::opCompleted(bool wasSuccessful, uint32_t index)
+{
+    // Don't populate caller's buffers if the I2C transfer failed.
+    if (wasSuccessful)
+    {
+        // Convert big endian data read from sensor to little endian.
+        m_pMagVector->x = ((uint16_t)m_buffer[0] << 8) | m_buffer[1];
+        m_pMagVector->y = ((uint16_t)m_buffer[2] << 8) | m_buffer[3];
+        m_pMagVector->z = ((uint16_t)m_buffer[4] << 8) | m_buffer[5];
+        m_pAccelVector->x = ((uint16_t)m_buffer[6] << 8) | m_buffer[7];
+        m_pAccelVector->y = ((uint16_t)m_buffer[8] << 8) | m_buffer[9];
+        m_pAccelVector->z = ((uint16_t)m_buffer[10] << 8) | m_buffer[11];
+
+        // Sign extend 14-bit signed values into 16-bit values.
+        const int shift14to16 = 16-14;
+        m_pAccelVector->x = (int16_t)(m_pAccelVector->x << shift14to16) >> shift14to16;
+        m_pAccelVector->y = (int16_t)(m_pAccelVector->y << shift14to16) >> shift14to16;
+        m_pAccelVector->z = (int16_t)(m_pAccelVector->z << shift14to16) >> shift14to16;
     }
 
-    // Convert big endian data read from sensor to little endian.
-    pMagVector->x = ((uint16_t)buffer[0] << 8) | buffer[1];
-    pMagVector->y = ((uint16_t)buffer[2] << 8) | buffer[3];
-    pMagVector->z = ((uint16_t)buffer[4] << 8) | buffer[5];
-    pAccelVector->x = ((uint16_t)buffer[6] << 8) | buffer[7];
-    pAccelVector->y = ((uint16_t)buffer[8] << 8) | buffer[9];
-    pAccelVector->z = ((uint16_t)buffer[10] << 8) | buffer[11];
-
-    // Sign extend 14-bit signed values into 16-bit values.
-    const int shift14to16 = 16-14;
-    pAccelVector->x = (int16_t)(pAccelVector->x << shift14to16) >> shift14to16;
-    pAccelVector->y = (int16_t)(pAccelVector->y << shift14to16) >> shift14to16;
-    pAccelVector->z = (int16_t)(pAccelVector->z << shift14to16) >> shift14to16;
-
-    return true;
+    // Ping caller's callback if the overall transfer is now completed.
+    m_pNotify->notify(wasSuccessful);
 }

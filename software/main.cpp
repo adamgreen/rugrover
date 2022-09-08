@@ -53,6 +53,7 @@
 #include <Navigate/Navigate.h>
 #include <AdafruitPrecision9DoF/AdafruitPrecision9DoF.h>
 #include <AdafruitPrecision9DoF/OrientationKalmanFilter.h>
+#include <I2CAsync/I2CAsync.h>
 
 
 
@@ -293,8 +294,11 @@ static OLED_SH1106          g_OLED(OLED_WIDTH, OLED_HEIGHT, OLED_COLUMN_OFFSET, 
 // TWIM (I2C Master) instance used for driving IMU and time of flight sensors.
 static const nrf_drv_twi_t  g_i2c = NRF_DRV_TWI_INSTANCE(I2C_INSTANCE);
 
+// Wrapper around TWIM (I2C master) instance which adds a circular queue to manage multiple async transfers.
+static I2CAsync             g_i2cAsync(&g_i2c, I2C_SCL_PIN, I2C_SDA_PIN, I2C_FREQUENCY, _PRIO_APP_MID);
+
 // Adafruit's 9DoF IMU.
-static AdafruitPrecision9DoF g_imu(&g_i2c, IMU_INT_PIN, IMU_SAMPLE_RATE);
+static AdafruitPrecision9DoF g_imu(&g_i2cAsync, IMU_INT_PIN, IMU_SAMPLE_RATE);
 
 // Kalman filter used to determine 3D orientation.
 static OrientationKalmanFilter g_orientation(IMU_SAMPLE_RATE, &g_imuCalibration);
@@ -374,32 +378,20 @@ int main(void)
     g_OLED.setBrightness(16);
     g_OLED.setTextColor(1, 0);
 
-    // UNDONE: Push out into its own function.
     // Init the I2C bus used for IMU and time of flight sensors.
-    nrf_drv_twi_config_t i2cConfig =
-    {
-        .scl = I2C_SCL_PIN,
-        .sda = I2C_SDA_PIN,
-        .frequency = I2C_FREQUENCY,
-        .interrupt_priority = _PRIO_APP_LOWEST, // UNDONE: Should probably be MID.
-        .clear_bus_init = false,
-        .hold_bus_uninit = false
-    };
-    // UNDONE: Is it ok that I am running this in blocking mode with no event handler?
-    ret_code_t returnCode = nrf_drv_twi_init(&g_i2c, &i2cConfig, NULL, NULL);
-    APP_ERROR_CHECK(returnCode);
+    bool result = g_i2cAsync.init();
+    ASSERT ( result );
 
-    // UNDONE: Use strong sink to 0 and disable internal pull-up as we have external ones.
-#define SCL_PIN_INIT_CONF     ( (GPIO_PIN_CNF_SENSE_Disabled << GPIO_PIN_CNF_SENSE_Pos) \
-                              | (GPIO_PIN_CNF_DRIVE_H0D1     << GPIO_PIN_CNF_DRIVE_Pos) \
-                              | (GPIO_PIN_CNF_PULL_Disabled    << GPIO_PIN_CNF_PULL_Pos)  \
-                              | (GPIO_PIN_CNF_INPUT_Connect  << GPIO_PIN_CNF_INPUT_Pos) \
-                              | (GPIO_PIN_CNF_DIR_Input      << GPIO_PIN_CNF_DIR_Pos))
-#define SDA_PIN_INIT_CONF        SCL_PIN_INIT_CONF
-    NRF_GPIO->PIN_CNF[i2cConfig.scl] = SCL_PIN_INIT_CONF;
-    NRF_GPIO->PIN_CNF[i2cConfig.sda] = SDA_PIN_INIT_CONF;
+    // UNDONE: Move out into its own function.
+    // Use strong sink to 0 and disable internal pull-up as we have external ones.
+    // Should be done after I2C is init since it will configure the pins and before the I2C peripheral is actually
+    // enabled.
+    nrf_gpio_cfg(I2C_SCL_PIN, NRF_GPIO_PIN_DIR_INPUT, NRF_GPIO_PIN_INPUT_CONNECT, NRF_GPIO_PIN_NOPULL,
+                 NRF_GPIO_PIN_H0D1, NRF_GPIO_PIN_NOSENSE);
+    nrf_gpio_cfg(I2C_SDA_PIN, NRF_GPIO_PIN_DIR_INPUT, NRF_GPIO_PIN_INPUT_CONNECT, NRF_GPIO_PIN_NOPULL,
+                 NRF_GPIO_PIN_H0D1, NRF_GPIO_PIN_NOSENSE);
 
-    nrf_drv_twi_enable(&g_i2c);
+    g_i2cAsync.enable();
 
     // The software quadrature decoder and IMU uses GPIOTE so initialize it now.
     nrf_drv_gpiote_init();
@@ -408,7 +400,7 @@ int main(void)
     NVIC_SetPriority(GPIOTE_IRQn, _PRIO_APP_HIGH);
 
     // Get the IMU sensor up and running.
-    bool result = g_imu.init();
+    result = g_imu.init();
     ASSERT ( result );
 
     // Initialize the ADC object which scans all of the configured ADC channels as often as possible (~200kHz).

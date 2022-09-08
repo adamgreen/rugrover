@@ -17,18 +17,27 @@
 #include "Vector.h"
 
 
-class FXOS8700CQ : public SensorBase
+class FXOS8700CQ : protected SensorBase
 {
 public:
-    FXOS8700CQ(int32_t sampleRate_Hz, nrf_drv_twi_t const * pTwiInstance, int address = 0x1F);
+    FXOS8700CQ(int32_t sampleRate_Hz, I2CAsync* pI2CAsync, int address = 0x1F);
     bool init();
 
-    bool getVectors(Vector<int16_t>* pAccelVector, Vector<int16_t>* pMagVector);
+    // There will be 1 I2C transfer completed to pNotify interface if supplied.
+    void getVectors(Vector<int16_t>* pAccelVector, Vector<int16_t>* pMagVector, II2CNotification* pNotify);
 
 protected:
+    // Method called in when a I2C operation is completed.
+    virtual void opCompleted(bool wasSuccessful, uint32_t index);
+
     void reset();
     bool initMagnetometer();
     bool initAccelerometer(int32_t sampleRateHz);
+
+    // Need enough space for 3-axis of magnetometer and accelerometer readings (16-bits per axis).
+    Vector<int16_t>* m_pAccelVector;
+    Vector<int16_t>* m_pMagVector;
+    uint8_t          m_buffer[sizeof(int16_t)*(3+3)];
 };
 
 #endif /* FXOS8700CQ_H_ */
