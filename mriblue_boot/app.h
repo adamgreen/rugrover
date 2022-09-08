@@ -18,12 +18,12 @@
 
 
 // Where the crash dump stores the CPU context in FLASH.
-#define CRASH_DUMP_CONTEXT  0x2b000
+#define CRASH_DUMP_CONTEXT  0x2C000
 // Where the crash dump stores the contents of SRAM at the time of the crash.
-#define CRASH_DUMP_RAM      0x2c000 // (CRASH_DUMP_CONTEXT+0x1000)
+#define CRASH_DUMP_RAM      0x2D000 // (CRASH_DUMP_CONTEXT+0x1000)
 
 // Where the application starts in FLASH.
-#define APP_START           0x3C000 // (CRASH_DUMP_RAM+0x10000)
+#define APP_START           0x3D000 // (CRASH_DUMP_RAM+0x10000)
 
 // Size of nRF52 FLASH pages in bytes.
 #define FLASH_PAGE_SIZE     4096
