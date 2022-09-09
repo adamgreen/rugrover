@@ -10,6 +10,7 @@
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 */
+// Driver for the FXAS21002C 3DoF gyro.
 #include <nrf_assert.h>
 #include <nrf_atomic.h>
 #include <nrf_delay.h>

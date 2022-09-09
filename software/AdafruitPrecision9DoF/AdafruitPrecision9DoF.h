@@ -10,6 +10,9 @@
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 */
+/* This driver uses the I2CAsync driver to communicate with the NXP FXOS8700CQ accelerometers/magnetometers and the
+   NXP FXAS21002C gyros.
+*/
 #ifndef ADAFRUIT_PRECISION_9DOF_H_
 #define ADAFRUIT_PRECISION_9DOF_H_
 

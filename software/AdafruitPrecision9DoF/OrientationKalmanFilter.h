@@ -10,6 +10,14 @@
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 */
+/* Implements a Kalman filter which takes the raw accelerometer, magnetometer, and gyro measurements from the
+   AdafruitPrecision9DoF object and generates a 3D orientation quaternion.
+
+  * The code for this filter was based on what I learned from reading "Kalman Filter for Beginners with MATLAB Examples"
+    by Phil Kim.
+  * I documented many of the required calibration steps earlier while working on my Ferdinand14 project:
+    https://github.com/adamgreen/Ferdinand14#august-19-2014
+*/
 #ifndef ORIENTATION_KALMAN_FILTER_H_
 #define ORIENTATION_KALMAN_FILTER_H_
 

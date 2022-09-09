@@ -1,4 +1,4 @@
-/*  Copyright (C) 2021  Adam Green (https://github.com/adamgreen)
+/*  Copyright (C) 2022  Adam Green (https://github.com/adamgreen)
 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License
@@ -9,6 +9,9 @@
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
+*/
+/* This driver uses the I2CAsync driver to communicate with the NXP FXOS8700CQ accelerometers/magnetometers and the
+   NXP FXAS21002C gyros.
 */
 #include <string.h>
 #include <nrf_delay.h>

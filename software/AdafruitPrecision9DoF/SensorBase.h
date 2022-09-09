@@ -10,6 +10,7 @@
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 */
+// Base class of I2C functionality shared by the FXOS8700CQ and FXAS21002C sensors.
 #ifndef SENSOR_BASE_H_
 #define SENSOR_BASE_H_
 

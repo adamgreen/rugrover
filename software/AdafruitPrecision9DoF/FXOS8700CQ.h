@@ -10,6 +10,7 @@
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 */
+// Driver for the FXOS8700CQ 3DoF accelerometer/magnetometer.
 #ifndef FXOS8700CQ_H_
 #define FXOS8700CQ_H_
 

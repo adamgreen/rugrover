@@ -10,6 +10,7 @@
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 */
+// Driver for the FXOS8700CQ 3DoF accelerometer/magnetometer.
 #include <nrf_assert.h>
 #include <nrf_delay.h>
 #include "FXOS8700CQ.h"
