@@ -33,6 +33,7 @@ Having recently reread the book, I thought it would be fun to build a comparable
 In addition to reading ["Mobile Robots: Inspiration to Implementation" by Joseph L. Jones and Anita M. Flynn](https://www.amazon.com/Mobile-Robots-Inspiration-Implementation-Second/dp/B0087P7X2S) I have also read a few other books to learn more about robot design, building, and programming while working on this project:
 
 <a href="https://www.amazon.com/Navigating-Mobile-Robots-Systems-Techniques/dp/156881058X"><img src="https://images-na.ssl-images-amazon.com/images/I/41VLoNv7q8L._SX398_BO1,204,203,200_.jpg" alt="Navigating Mobile Robots: Systems and Techniques" width="128"></a>
+<a href="https://www.amazon.com/Kalman-Filter-Beginners-MATLAB-Examples/dp/1463648359"><img src="https://images-na.ssl-images-amazon.com/images/I/4160wDbTziL.jpg" alt="Kalman Filter for Beginners with MATLAB Examples" width="128"></a>
 
 **Note:** A free PDF version of the **Navigating Mobile Robots book by Borenstein et al** shown above is also available [here](http://www-personal.umich.edu/~johannb/Papers/pos96rep.pdf).
 
@@ -161,3 +162,17 @@ Once the mechanical and electronics were far enough along I could start writing 
   * The mAh consumed by the motors since reset.
   * A flag to indicate whether the PID is running in manual or auto mode.
 * [Navigate](software/Navigate/README.md#navigate-class): Class used to navigate between a list of user specified waypoints and track the real world location of the robot based on wheel odometry.
+* [CircularBuffer](software/CircularBuffer/CircularBuffer.h): Generic lock-free circular buffer that supports multiple producers and consumers.
+* [I2CAsync](software/I2CAsync/I2CAsync.h): This driver makes it easier to use the nRF52's TWIM peripheral asynchronously. It makes use of the `CircularBuffer` to allow ISRs running at different interrupt priorities to communicate with several different I2C devices.
+* [AdafruitPrecision9DoF](software/AdafruitPrecision9DoF/AdafruitPrecision9DoF.h): This driver uses the `I2CAsync` driver to communicate with the `FXOS8700CQ` accelerometers/magnetometers and the `FXAS21002C` gyros.
+  * The desired refresh rate (100Hz, 200Hz, or 400Hz) is specified in the constructor.
+  * The `FXOS8700CQ` will pull a pin low when the next sample is ready at the specified rate.
+  * This falling edge generates an interrupt that causes the next I2C reads of the accelerometers, magnetometers, and gyros to be queued up in the `I2CAsync` queue.
+  * The `getRawSensorValues()` method, typically called from the main thread, will block until all of the queued up reads are completed.
+* [OrientationKalmanFilter](software/AdafruitPrecision9DoF/OrientationKalmanFilter.h): Implements a Kalman filter which takes the raw accelerometer, magnetometer, and gyro measurements from the `AdafruitPrecision9DoF` object and generates a 3D orientation quaternion.
+  * It also contains a method which can extract the compass heading from this 3D orientation as well.
+  * The code for this filter was based on what I learned from reading ["Kalman Filter for Beginners with MATLAB Examples" by Phil Kim](https://www.amazon.com/Kalman-Filter-Beginners-MATLAB-Examples/dp/1463648359).
+  * I documented many of the required calibration steps [earlier while working on my Ferdinand14 project](https://github.com/adamgreen/Ferdinand14#august-19-2014).
+  * The [processing/calibration folder](processing/calibration/) contains a port of the calibration program which will work with this robot. The robot does need to be running the "Test IMU Raw" option from the debug menu to send the required measurements to this calibration program.
+  * The [processing/orientation folder](processing/orientation/) contains a program that visualizes the 3D orientation of the robot in real time. The robot needs to be running the "TTest IMU Orientation" option from the debug menu in order to send the required quaternion data over BLE to this program.
+  * Both of the processing programs above use a TCP/IP socket to connect to the `mriblue` program on port 3334. This gives it access to extra data sent from the robot over BLE that isn't meant for GDB.
