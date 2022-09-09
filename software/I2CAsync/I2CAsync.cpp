@@ -61,10 +61,10 @@ void I2CAsync::staticIsrHandler(nrf_drv_twi_evt_t const * pEvent, void* pvContex
 
 void I2CAsync::isrHandler(nrf_drv_twi_evt_t const * pEvent)
 {
-    nrf_atomic_u32_sub(&m_inFlight, 1);
-    ASSERT ( m_inFlight == 0 || m_inFlight == 1 );
+    // Transfer just completed so release the mutex.
+    m_inFlight = 0;
 
-    // UNDONE: Should communicate NAK errors back to blocking callers.
+    // UNDONE: Should communicate errors back to blocking callers.
     if (m_currentEntry.pNotify != NULL)
     {
         m_currentEntry.pNotify->notify(pEvent);
@@ -79,9 +79,13 @@ void I2CAsync::isrHandler(nrf_drv_twi_evt_t const * pEvent)
 
 void I2CAsync::popEntryFromQueueAndBeginI2CTransfer()
 {
-    if (m_inFlight > 0)
+    // Attempt to acquire the mutex which only allows one I2C transaction to be in flight.
+    uint32_t valueIfFree = 0;
+    uint32_t valueIfInUse = 1;
+    bool acquired = __atomic_compare_exchange_n(&m_inFlight, &valueIfFree, valueIfInUse, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+    if (!acquired)
     {
-        // There is already an entry in flight so no need to queue up another now. It will be queued up when current 1
+        // There is already an entry in flight so can't start another. Then next entry will be started when current 1
         // completes.
         return;
     }
@@ -89,7 +93,8 @@ void I2CAsync::popEntryFromQueueAndBeginI2CTransfer()
     bool haveAnotherEntry = m_queue.read(m_currentEntry);
     if (!haveAnotherEntry)
     {
-        // No more entries in queue to send so just return.
+        // No more entries in queue to send so release the mutex and return.
+        m_inFlight = 0;
         return;
     }
 
@@ -121,10 +126,10 @@ void I2CAsync::popEntryFromQueueAndBeginI2CTransfer()
             break;
     }
     APP_ERROR_CHECK(result);
-    if (result == NRF_SUCCESS)
+    if (result != NRF_SUCCESS)
     {
-        nrf_atomic_u32_add(&m_inFlight, 1);
-        ASSERT ( m_inFlight == 0 || m_inFlight == 1 );
+        // Failed to issue I2C transfer so release the mutex.
+        m_inFlight = 0;
     }
 }
 
