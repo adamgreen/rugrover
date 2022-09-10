@@ -16,6 +16,7 @@
 #include <string.h>
 #include <nrf_delay.h>
 #include "AdafruitPrecision9DoF.h"
+#include "GlobalTimer/GlobalTimer.h"
 
 
 
@@ -25,9 +26,11 @@ AdafruitPrecision9DoF::AdafruitPrecision9DoF(I2CAsync* pI2CAsync, uint8_t int1Pi
 :   m_accelMag(sampleRate_Hz, pI2CAsync),
     m_gyro(sampleRate_Hz, pI2CAsync)
 {
+    m_pI2CAsync = pI2CAsync;
     m_failedIsrIo = 0;
     m_currentSample = 0;
     m_lastSample = 0;
+    m_lastSampleTime_us = 0;
     m_int1Pin = int1Pin;
     m_ioIndex = 0;
     m_sampleRate_Hz = sampleRate_Hz;
@@ -53,9 +56,8 @@ bool AdafruitPrecision9DoF::init()
     // Issue reads for first sample and block.
     interruptHandler();
     waitForFirstIoToComplete();
-
-    // Make sure that interrupt pin is no longer asserted after reading first sample.
-    ASSERT ( nrf_gpio_pin_read(m_int1Pin) == 1 );
+    // First sample period won't be correct so hard code it to desired sample period.
+    m_sensorValues.samplePeriod_us = 1000000 / m_sampleRate_Hz;
 
     return true;
 }
@@ -96,8 +98,8 @@ void  AdafruitPrecision9DoF::staticInterruptHandler(nrf_drv_gpiote_pin_t pin, nr
 
 void AdafruitPrecision9DoF::interruptHandler()
 {
-    m_accelMag.getVectors(&m_sensorValues.accel, &m_sensorValues.mag, this);
-    m_gyro.getVector(&m_sensorValues.gyro, &m_sensorValues.gyroTemperature, this);
+    m_accelMag.getVectors(&m_sensorValuesDirty.accel, &m_sensorValuesDirty.mag, this);
+    m_gyro.getVector(&m_sensorValuesDirty.gyro, &m_sensorValuesDirty.gyroTemperature, this);
 }
 
 void AdafruitPrecision9DoF::waitForFirstIoToComplete()
@@ -118,6 +120,13 @@ void AdafruitPrecision9DoF::notify(bool wasSuccessful)
     uint32_t newIoIndex = nrf_atomic_u32_add(&m_ioIndex, 1);
     if ((newIoIndex % 2) == 0)
     {
+        memcpy(&m_sensorValues, &m_sensorValuesDirty, sizeof(m_sensorValues));
+
+        // Time stamp this latest sample with the period between samples in us.
+        uint32_t currentSampleTime_us = micros();
+        m_sensorValuesDirty.samplePeriod_us = currentSampleTime_us - m_lastSampleTime_us;
+        m_lastSampleTime_us = currentSampleTime_us;
+
         // Every second transfer that completes means that the latest samples from accelerometer/magnetometer and
         // gyros have been received.
         m_currentSample++;
@@ -136,10 +145,9 @@ SensorValues AdafruitPrecision9DoF::getRawSensorValues()
     } while (currentSample == m_lastSample);
     m_lastSample = currentSample;
 
-    // UNDONE: Use interrupt priority for this.
-    __disable_irq();
+    m_pI2CAsync->disableInterrupt();
         memcpy(&sensorValues, &m_sensorValues, sizeof(sensorValues));
-    __enable_irq();
+    m_pI2CAsync->enableInterrupt();
 
     return sensorValues;
 }

@@ -26,6 +26,7 @@ I2CAsync::I2CAsync(nrf_drv_twi_t const * pTwiInstance, uint8_t sclPin, uint8_t s
     m_frequency = frequency;
     m_inFlight = 0;
     m_irqPriority = irqPriority;
+    m_origPriority = 0;
     m_isInit = false;
 }
 
@@ -36,7 +37,7 @@ bool I2CAsync::init()
         .scl = m_sclPin,
         .sda = m_sdaPin,
         .frequency = m_frequency,
-        .interrupt_priority = m_irqPriority,
+        .interrupt_priority = (uint8_t)m_irqPriority,
         .clear_bus_init = false,
         .hold_bus_uninit = false
     };
@@ -64,13 +65,13 @@ void I2CAsync::isrHandler(nrf_drv_twi_evt_t const * pEvent)
     // Transfer just completed so release the mutex.
     m_inFlight = 0;
 
-    // UNDONE: Should communicate errors back to blocking callers.
     if (m_currentEntry.pNotify != NULL)
     {
         m_currentEntry.pNotify->notify(pEvent);
     }
     if (m_currentEntry.pIsCompleted)
     {
+        *m_currentEntry.pWasSuccessful = (pEvent->type == NRF_DRV_TWI_EVT_DONE);
         *m_currentEntry.pIsCompleted = true;
     }
 
@@ -147,6 +148,7 @@ bool I2CAsync::writeRegister(uint8_t i2cAddress, uint8_t registerAddress, uint8_
     Entry entry =
     {
         .pIsCompleted = NULL,
+        .pWasSuccessful = NULL,
         .pBuffer = NULL,
         .pNotify = pNotify,
         .bufferSize = 0,
@@ -164,6 +166,7 @@ bool I2CAsync::readRegisters(uint8_t i2cAddress, uint8_t registerAddress, void* 
     Entry entry =
     {
         .pIsCompleted = NULL,
+        .pWasSuccessful = NULL,
         .pBuffer = pBuffer,
         .pNotify = pNotify,
         .bufferSize = bufferSize,
@@ -180,9 +183,11 @@ bool I2CAsync::queueUpEntry(Entry& entry)
     ASSERT ( entry.bufferSize <= 0xFF );
 
     volatile bool isCompleted = false;
+    volatile bool wasSuccessful = false;
     if (entry.pNotify == NULL)
     {
         entry.pIsCompleted = &isCompleted;
+        entry.pWasSuccessful = &wasSuccessful;
     }
 
     bool result = m_queue.write(entry);
@@ -198,5 +203,6 @@ bool I2CAsync::queueUpEntry(Entry& entry)
     while (entry.pNotify == NULL && !isCompleted)
     {
     }
-    return true;
+
+    return entry.pNotify != NULL || wasSuccessful;
 }

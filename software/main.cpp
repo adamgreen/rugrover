@@ -331,13 +331,19 @@ static Navigate             g_navigate(&g_drive, MOTOR_TICKS_PER_REV,
 static FILE*                g_pDataFile = NULL;
 
 // If this global gets set to non-zero from debugger then enter debug menu.
-static int           g_dbg = 0;
+static int                  g_dbg = 0;
 
 // Which debug routine should be executed.
-static DebugRoutines g_dbgRoutine = DEBUG_IMU_ORIENTATION;
+static DebugRoutines        g_dbgRoutine = DEBUG_IMU_ORIENTATION;
 
 
 
+static void initDataFile();
+static void initOLED();
+static void testHardWiringSomeOLEDPins();
+static void initI2C();
+static void configureI2CPinsToDisablePullUpAndUseHigherCurrentSinkTo0V();
+static void initGPIOTE_AtHighestAppPriority();
 static uint32_t displayDebugMenuAndGetOption(const char* pOptionsString, uint32_t maxOption);
 static void testNavigateRoutine();
 static float getFloatOption(const char* pDescription, float defaultVal);
@@ -360,47 +366,16 @@ int main(void)
 {
     verifyUICRBits();
 
-    // UNDONE: Move out into a function.
-    // Open the special file to which data can be sent wirelessly to application running on mac.
-    g_pDataFile = fdopen(0x7FFF, "w");
-    // UNDONE: May not want this to be line buffered in the future.
-    setvbuf(g_pDataFile, NULL, _IOLBF, 0);
+    initDataFile();
 
-    // Looks like I can just hardwire CS low and RESET high on the OLED. This will free up 2 pins.
-    nrf_gpio_pin_clear(OLED_CS_PIN);
-    nrf_gpio_cfg_output(OLED_CS_PIN);
-    nrf_gpio_pin_set(OLED_RESET_PIN);
-    nrf_gpio_cfg_output(OLED_RESET_PIN);
-
-    // Init the OLED used for debug output.
-    g_OLED.init();
-    g_OLED.setRotation(2);
-    g_OLED.setBrightness(16);
-    g_OLED.setTextColor(1, 0);
-
-    // Init the I2C bus used for IMU and time of flight sensors.
-    bool result = g_i2cAsync.init();
-    ASSERT ( result );
-
-    // UNDONE: Move out into its own function.
-    // Use strong sink to 0 and disable internal pull-up as we have external ones.
-    // Should be done after I2C is init since it will configure the pins and before the I2C peripheral is actually
-    // enabled.
-    nrf_gpio_cfg(I2C_SCL_PIN, NRF_GPIO_PIN_DIR_INPUT, NRF_GPIO_PIN_INPUT_CONNECT, NRF_GPIO_PIN_NOPULL,
-                 NRF_GPIO_PIN_H0D1, NRF_GPIO_PIN_NOSENSE);
-    nrf_gpio_cfg(I2C_SDA_PIN, NRF_GPIO_PIN_DIR_INPUT, NRF_GPIO_PIN_INPUT_CONNECT, NRF_GPIO_PIN_NOPULL,
-                 NRF_GPIO_PIN_H0D1, NRF_GPIO_PIN_NOSENSE);
-
-    g_i2cAsync.enable();
+    initOLED();
+    initI2C();
 
     // The software quadrature decoder and IMU uses GPIOTE so initialize it now.
-    nrf_drv_gpiote_init();
-
-    // Run software quadrature decoder GPIOTE ISR at the highest app priority.
-    NVIC_SetPriority(GPIOTE_IRQn, _PRIO_APP_HIGH);
+    initGPIOTE_AtHighestAppPriority();
 
     // Get the IMU sensor up and running.
-    result = g_imu.init();
+    bool result = g_imu.init();
     ASSERT ( result );
 
     // Initialize the ADC object which scans all of the configured ADC channels as often as possible (~200kHz).
@@ -456,6 +431,60 @@ int main(void)
                                         "6. Test IMU Raw\n"
                                         "7. Test IMU Orientation\n", DEBUG_MAX);
     }
+}
+
+static void initDataFile()
+{
+    // Open the special file to which data can be sent wirelessly to application running on mac.
+    g_pDataFile = fdopen(0x7FFF, "w");
+    // UNDONE: May not want this to be line buffered in the future.
+    setvbuf(g_pDataFile, NULL, _IOLBF, 0);
+}
+
+static void initOLED()
+{
+    testHardWiringSomeOLEDPins();
+
+    g_OLED.init();
+    g_OLED.setRotation(2);
+    g_OLED.setBrightness(16);
+    g_OLED.setTextColor(1, 0);
+}
+
+static void testHardWiringSomeOLEDPins()
+{
+    // Looks like I can just hard wire CS low and RESET high on the OLED. This will free up 2 pins.
+    nrf_gpio_pin_clear(OLED_CS_PIN);
+    nrf_gpio_cfg_output(OLED_CS_PIN);
+    nrf_gpio_pin_set(OLED_RESET_PIN);
+    nrf_gpio_cfg_output(OLED_RESET_PIN);
+}
+
+static void initI2C()
+{
+    bool result = g_i2cAsync.init();
+    ASSERT ( result );
+
+    configureI2CPinsToDisablePullUpAndUseHigherCurrentSinkTo0V();
+
+    g_i2cAsync.enable();
+}
+
+static void configureI2CPinsToDisablePullUpAndUseHigherCurrentSinkTo0V()
+{
+    // Use strong sink to 0 and disable internal pull-up as we have external ones.
+    // Should be done after I2C is init since it will configure the pins and before the I2C peripheral is actually
+    // enabled.
+    nrf_gpio_cfg(I2C_SCL_PIN, NRF_GPIO_PIN_DIR_INPUT, NRF_GPIO_PIN_INPUT_CONNECT, NRF_GPIO_PIN_NOPULL,
+                 NRF_GPIO_PIN_H0D1, NRF_GPIO_PIN_NOSENSE);
+    nrf_gpio_cfg(I2C_SDA_PIN, NRF_GPIO_PIN_DIR_INPUT, NRF_GPIO_PIN_INPUT_CONNECT, NRF_GPIO_PIN_NOPULL,
+                 NRF_GPIO_PIN_H0D1, NRF_GPIO_PIN_NOSENSE);
+}
+
+static void initGPIOTE_AtHighestAppPriority()
+{
+    nrf_drv_gpiote_init();
+    NVIC_SetPriority(GPIOTE_IRQn, _PRIO_APP_HIGH);
 }
 
 static uint32_t displayDebugMenuAndGetOption(const char* pOptionsString, uint32_t maxOption)
@@ -1490,18 +1519,12 @@ static void hangOnError(const char* pErrorMessage)
 
 static void debugImuRoutine(DebugImuType type)
 {
-    // Enter main action loop.
-    const uint32_t delayms = 1000 / MOTOR_PID_FREQUENCY;
-    const uint32_t delay_us = delayms * 1000;
-    uint32_t count = 0;
-
     // Setup the fixed heading text on the OLED.
     g_OLED.clearScreen();
     g_OLED.printf("Heading:\n");
 
     g_orientation.reset();
-
-    uint32_t iteration = 0;
+    uint32_t count = 0;
     uint32_t prevDumpTime = micros();
     while (true)
     {
@@ -1519,8 +1542,7 @@ static void debugImuRoutine(DebugImuType type)
 
         // Run the latest sensor reading through the Kalman filter to determine orientation/heading.
         SensorCalibratedValues calibratedValues = g_orientation.calibrateSensorValues(&sensorValues);
-        // UNDONE: The samples should have sample times in them so that I pass in below.
-        Quaternion orientation = g_orientation.getOrientation(&calibratedValues, delay_us);
+        Quaternion orientation = g_orientation.getOrientation(&calibratedValues, sensorValues.samplePeriod_us);
         float headingAngle = g_orientation.getHeading(&orientation);
 
         // Send the latest readings to application running on Mac.
@@ -1532,7 +1554,7 @@ static void debugImuRoutine(DebugImuType type)
                         sensorValues.mag.x, sensorValues.mag.y, sensorValues.mag.z,
                         sensorValues.gyro.x, sensorValues.gyro.y, sensorValues.gyro.z,
                         sensorValues.gyroTemperature,
-                        delay_us);
+                        sensorValues.samplePeriod_us);
                 break;
             case IMU_ORIENTATION:
                 fprintf(g_pDataFile, "%f,%f,%f,%f,%f\n",
@@ -1554,8 +1576,6 @@ static void debugImuRoutine(DebugImuType type)
             prevDumpTime = currTime;
             count = 0;
         }
-
-        iteration++;
     }
 }
 

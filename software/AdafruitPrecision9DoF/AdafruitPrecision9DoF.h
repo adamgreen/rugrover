@@ -23,9 +23,9 @@
 #include "FXAS21002C.h"
 #include "Vector.h"
 
-// UNDONE: Could add sample time to this struct.
 struct SensorValues
 {
+    uint32_t        samplePeriod_us;
     Vector<int16_t> accel;
     Vector<int16_t> mag;
     Vector<int16_t> gyro;
@@ -59,13 +59,16 @@ protected:
     void         interruptHandler();
     void         waitForFirstIoToComplete();
 
+    I2CAsync*               m_pI2CAsync;
     FXOS8700CQ              m_accelMag;
     FXAS21002C              m_gyro;
     volatile uint32_t       m_currentSample;
     volatile uint32_t       m_failedIsrIo;
     uint32_t                m_lastSample;
+    uint32_t                m_lastSampleTime_us;
     volatile uint32_t       m_ioIndex;
     int32_t                 m_sampleRate_Hz;
+    SensorValues            m_sensorValuesDirty;
     SensorValues            m_sensorValues;
     uint8_t                 m_int1Pin;
 };

@@ -46,6 +46,17 @@ class I2CAsync
         bool readRegisters(uint8_t i2cAddress, uint8_t registerAddress, void* pBuffer, size_t bufferSize,
                            ITWIMNotification* pNotify = NULL);
 
+
+        void disableInterrupt()
+        {
+            m_origPriority = __get_BASEPRI();
+            __set_BASEPRI(m_irqPriority << (8-__NVIC_PRIO_BITS));
+        }
+        void enableInterrupt()
+        {
+            __set_BASEPRI(m_origPriority);
+        }
+
     protected:
         enum EntryType
         {
@@ -55,6 +66,7 @@ class I2CAsync
         struct Entry
         {
             volatile bool*    pIsCompleted;
+            volatile bool*    pWasSuccessful;
             void*             pBuffer;
             ITWIMNotification* pNotify;
             size_t            bufferSize;
@@ -73,13 +85,14 @@ class I2CAsync
 
         nrf_drv_twi_t const*        m_pI2C;
         volatile uint32_t           m_inFlight;
+        uint32_t                    m_irqPriority;
+        uint32_t                    m_origPriority;
         Entry                       m_currentEntry;
         CircularBuffer<Entry, I2C_ASYNC_BUFFER_SIZE>    m_queue;
         nrf_twi_frequency_t         m_frequency;
         bool                        m_isInit;
         uint8_t                     m_sclPin;
         uint8_t                     m_sdaPin;
-        uint8_t                     m_irqPriority;
 };
 
 #endif // I2C_ASYNC_H_
