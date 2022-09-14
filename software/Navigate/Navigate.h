@@ -29,7 +29,7 @@ class Navigate
     public:
         Navigate(DifferentialDrive* pDrive, float ticksPerRotation,
                  float leftWheelDiameter_mm, float rightWheelDiameter_mm, float wheelbase_mm,
-                 float distanceThreshold_mm, float angleThreshold_radians, float headingRatio,
+                 float distanceThreshold_mm, float angleThreshold_radians, float headingRatio, uint32_t brakeSamples,
                  float headingPidKc, float headingPidTi, float headingPidTd,
                  float distancePidKc, float distancePidTi, float distancePidTd);
 
@@ -89,6 +89,7 @@ class Navigate
         {
             ROTATE_TO_NEXT,
             DRIVE_TO_NEXT,
+            BRAKE,
             ROTATE_TO_HEADING
         };
 
@@ -96,6 +97,9 @@ class Navigate
         const Position*     m_pWaypoints;
         size_t              m_waypointCount;
         size_t              m_waypointIndex;
+        uint32_t            m_brakeSamples;
+        uint32_t            m_zeroSamples;
+        DriveValues         m_encoderDeltas;
         WaypointState       m_waypointState;
         int8_t*             m_pLog;
         int8_t*             m_pLogCurr;

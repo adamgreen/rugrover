@@ -27,7 +27,7 @@ struct LogEntry
 
 Navigate::Navigate(DifferentialDrive* pDrive, float ticksPerRotation,
                   float leftWheelDiameter_mm, float rightWheelDiameter_mm, float wheelbase_mm,
-                  float distanceThreshold_mm, float angleThreshold_radians, float headingRatio,
+                  float distanceThreshold_mm, float angleThreshold_radians, float headingRatio, uint32_t brakeSamples,
                   float headingPidKc, float headingPidTi, float headingPidTd,
                   float distancePidKc, float distancePidTi, float distancePidTd)
 : m_headingPID(headingPidKc, headingPidTi, headingPidTd, 0.0f, -0.5f, 0.5f, 1.0f/pDrive->getPidFrequency()),
@@ -40,6 +40,8 @@ Navigate::Navigate(DifferentialDrive* pDrive, float ticksPerRotation,
     m_distanceThreshold = distanceThreshold_mm;
     m_angleThreshold = angleThreshold_radians;
     m_headingRatio = headingRatio;
+    m_brakeSamples = brakeSamples;
+    m_zeroSamples = 0;
     m_turnVelocity_mps = 0.0f;
     m_pWaypoints = NULL;
     m_waypointCount = 0;
@@ -49,6 +51,7 @@ Navigate::Navigate(DifferentialDrive* pDrive, float ticksPerRotation,
     setParameters(leftWheelDiameter_mm, rightWheelDiameter_mm, wheelbase_mm);
     reset();
     memset(&m_prevTicks, 0, sizeof(m_prevTicks));
+    memset(&m_encoderDeltas, 0, sizeof(m_encoderDeltas));
 }
 
 void Navigate::setParameters(float leftWheelDiameter_mm, float rightWheelDiameter_mm, float wheelbase_mm)
@@ -126,13 +129,38 @@ void Navigate::update()
                 float angleDelta = constrainAngle(delta.angle-m_currentPosition.heading);
                 if (delta.distance < m_distanceThreshold || fabsf(angleDelta) > ninetyDegrees)
                 {
-                    m_waypointState = ROTATE_TO_HEADING;
-                    m_headingPID.setControlLimits(-m_turnVelocity_mps, m_turnVelocity_mps);
-                    break;
+                    m_zeroSamples = 0;
+                    m_waypointState = BRAKE;
+                    DriveValues powers = { 0, 0 };
+                    m_pDrive->setPower(powers);
+
+                    // Returning instead of breaking because the braking code path uses setPower()
+                    // instead of setVelocities().
+                    return;
                 }
                 velocities.left = distancePortion + anglePortion;
                 velocities.right = distancePortion - anglePortion;
                 break;
+            }
+            case BRAKE:
+            {
+                if (m_encoderDeltas.left == 0 && m_encoderDeltas.right == 0)
+                {
+                    m_zeroSamples++;
+                }
+                if (m_zeroSamples < m_brakeSamples)
+                {
+                    // Keep manually braking and return instead of setting PID velocity.
+                    DriveValues powers = { 0, 0 };
+                    m_pDrive->setPower(powers);
+                    return;
+                }
+                else
+                {
+                    m_waypointState = ROTATE_TO_HEADING;
+                    m_headingPID.setControlLimits(-m_turnVelocity_mps, m_turnVelocity_mps);
+                    break;
+                }
             }
             case ROTATE_TO_HEADING:
             {
@@ -193,12 +221,9 @@ void Navigate::drive(DriveFloatValues& velocities_mps)
 void Navigate::updateCurrentPosition()
 {
     DifferentialDrive::DriveStats stats = m_pDrive->getStats();
-    DriveValues wheelDiffs =
-    {
-        .left = stats.encoderCount.left - m_prevTicks.left,
-        .right = stats.encoderCount.right - m_prevTicks.right
-    };
-    PositionDelta delta = calculateMovementAmount(wheelDiffs);
+    m_encoderDeltas.left = stats.encoderCount.left - m_prevTicks.left;
+    m_encoderDeltas.right = stats.encoderCount.right - m_prevTicks.right;
+    PositionDelta delta = calculateMovementAmount(m_encoderDeltas);
     m_currentPosition.heading = constrainAngle(m_currentPosition.heading + delta.angle);
     m_currentPosition.x += delta.distance * sinf(m_currentPosition.heading);
     m_currentPosition.y += delta.distance * cosf(m_currentPosition.heading);
@@ -209,8 +234,8 @@ void Navigate::updateCurrentPosition()
     if (m_pLog != NULL)
     {
         LogEntry* pCurr = (LogEntry*)m_pLogCurr;
-        pCurr->leftTickDelta = wheelDiffs.left;
-        pCurr->rightTickDelta = wheelDiffs.right;
+        pCurr->leftTickDelta = m_encoderDeltas.left;
+        pCurr->rightTickDelta = m_encoderDeltas.right;
         pCurr->leftMotorPower = stats.power.left;
         pCurr->rightMotorPower = stats.power.right;
         pCurr++;

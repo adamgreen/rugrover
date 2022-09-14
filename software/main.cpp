@@ -160,8 +160,8 @@
     Ti = 0.785653
 */
 #define HEADING_PID_Kc            0.320254f
-#define HEADING_PID_Ti            0.801193f
-#define HEADING_PID_Td            0.785653f
+#define HEADING_PID_Ti            0.785653f
+#define HEADING_PID_Td            0.0f
 
 /* Constants used for the navigation distance PI loop.
     slope1 = 113.845070
@@ -179,11 +179,14 @@
 #define DISTANCE_PID_Td            0.0f
 
 // Thresholds used in the Navigate module to determine when close enough to a waypoint.
-#define THRESHOLD_DISTANCE      10.0f
-#define THRESHOLD_ANGLE         (10.0f * DEGREE_TO_RADIAN)
+#define THRESHOLD_DISTANCE      0.5f
+#define THRESHOLD_ANGLE         (0.5f * DEGREE_TO_RADIAN)
 
 // The heading correction limits are based on the current forward speed. This macro specifies that ratio.
 #define HEADING_VS_FORWARD_SPEED    0.5f
+
+// When braking, wait for this many samples to return 0 encoder ticks before consider the stop to be complete.
+#define BRAKE_ZERO_SAMPLE       5
 
 // PID Frequency in Hz.
 #define MOTOR_PID_FREQUENCY     100
@@ -323,7 +326,7 @@ static DifferentialDrive    g_drive(LMOTOR_EN_PIN, LMOTOR_PWM1_PIN, LMOTOR_PWM2_
 // Navigation module.
 static Navigate             g_navigate(&g_drive, MOTOR_TICKS_PER_REV,
                                        LEFT_WHEEL_DIAMETER, RIGHT_WHEEL_DIAMETER, WHEELBASE,
-                                       THRESHOLD_DISTANCE, THRESHOLD_ANGLE, HEADING_VS_FORWARD_SPEED,
+                                       THRESHOLD_DISTANCE, THRESHOLD_ANGLE, HEADING_VS_FORWARD_SPEED, BRAKE_ZERO_SAMPLE,
                                        HEADING_PID_Kc, HEADING_PID_Ti, HEADING_PID_Td,
                                        DISTANCE_PID_Kc, DISTANCE_PID_Ti, DISTANCE_PID_Td);
 
@@ -334,7 +337,7 @@ static FILE*                g_pDataFile = NULL;
 static int                  g_dbg = 0;
 
 // Which debug routine should be executed.
-static DebugRoutines        g_dbgRoutine = DEBUG_IMU_ORIENTATION;
+static DebugRoutines        g_dbgRoutine = DEBUG_NAVIGATE;
 
 
 
@@ -583,16 +586,16 @@ static void testNavigateRoutine()
         };
         Navigate::Position clockwiseWaypoints[] =
         {
-            { .x = 0.0f, .y = 500.0f, .heading = NAN },
-            { .x = 500.0f, .y = 500.0f, .heading = NAN },
-            { .x = 500.0f, .y = 0.0f, .heading = NAN },
+            { .x = 0.0f, .y = 1000.0f, .heading = NAN },
+            { .x = 1000.0f, .y = 1000.0f, .heading = NAN },
+            { .x = 1000.0f, .y = 0.0f, .heading = NAN },
             { .x = 0.0f, .y = 0.0f, .heading = 0.0f }
         };
         Navigate::Position counterClockwiseWaypoints[] =
         {
-            { .x = 500.0f, .y = 0.0f, .heading = NAN },
-            { .x = 500.0f, .y = 500.0f, .heading = NAN },
-            { .x = 0.0f, .y = 500.0f, .heading = NAN },
+            { .x = 1000.0f, .y = 0.0f, .heading = NAN },
+            { .x = 1000.0f, .y = 1000.0f, .heading = NAN },
+            { .x = 0.0f, .y = 1000.0f, .heading = NAN },
             { .x = 0.0f, .y = 0.0f, .heading = 0.0f }
         };
         switch (testMode)
