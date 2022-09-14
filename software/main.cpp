@@ -188,6 +188,9 @@
 // When braking, wait for this many samples to return 0 encoder ticks before consider the stop to be complete.
 #define BRAKE_ZERO_SAMPLE       5
 
+// Number of IMU samples to run through the Kalman filter before start to allow it to stabilize.
+#define IMU_STABILIZATION_SAMPLES   (5 * MOTOR_PID_FREQUENCY)
+
 // PID Frequency in Hz.
 #define MOTOR_PID_FREQUENCY     100
 
@@ -565,8 +568,6 @@ static void testNavigateRoutine()
         const float    driveSpeed_mps = 0.25f;
         const float    turnSpeed_mps = 0.25f;
         const float    angleThreshold = 15.0f * DEGREE_TO_RADIAN;
-        const uint32_t delayms = 1000 / MOTOR_PID_FREQUENCY;
-        const uint32_t delay_us = delayms * 1000;
         uint32_t count = 0;
 
         // Setup the fixed heading text on the OLED.
@@ -574,6 +575,7 @@ static void testNavigateRoutine()
         g_OLED.printf("  Pos X:\n");
         g_OLED.printf("  Pos Y:\n");
         g_OLED.printf("Heading:\n");
+        g_OLED.printf("Compass:\n");
         g_OLED.printf("  Ticks:\n");
         g_OLED.printf(" Max mA:\n");
 
@@ -610,19 +612,61 @@ static void testNavigateRoutine()
                 g_navigate.setWaypoints(straightWaypoints, ARRAY_SIZE(straightWaypoints));
                 break;
         }
+        g_orientation.reset();
         g_navigate.setWaypointVelocities(driveSpeed_mps, turnSpeed_mps);
         g_drive.enable();
+        float initialHeading = 0.0f;
         uint32_t iteration = 0;
-        uint32_t prevTime = micros();
         uint32_t prevDumpTime = micros();
         while (true)
         {
-            // Delay specified amount of time between iterations of the loop.
-            sleep_us(&prevTime, delay_us);
-            if (g_dbg)
+            uint32_t   imuIterations = 1;
+            Quaternion orientation;
+            float      headingAngle;
+
+            // Give the Kalman filter some time to stabilize on the first iteration.
+            if (iteration == 0)
             {
-                return;
+                imuIterations = IMU_STABILIZATION_SAMPLES;
             }
+
+            for (uint32_t i = 0 ; i < imuIterations ; i++)
+            {
+                if (g_dbg)
+                {
+                    return;
+                }
+
+                // Blocking read of the next sensor reading. This sets the 100Hz update rate.
+                SensorValues sensorValues = g_imu.getRawSensorValues();
+                if (g_imu.didIoFail())
+                {
+                    hangOnError("Encountered I2C I/O error during fetch of IMU sensor readings.\n");
+                }
+
+                // Run the latest sensor reading through the Kalman filter to determine orientation/heading.
+                SensorCalibratedValues calibratedValues = g_orientation.calibrateSensorValues(&sensorValues);
+                orientation = g_orientation.getOrientation(&calibratedValues, sensorValues.samplePeriod_us);
+                headingAngle = g_orientation.getHeading(&orientation);
+
+                if (i > 0)
+                {
+                    // Expose orientation and heading from here while stabilizing Kalman filter. Once stabilized it
+                    // will be exposed later down in the code after the dead reckoning code has run.
+                    fprintf(g_pDataFile, "%f,%f,%f,%f,%f\n",
+                            orientation.w, orientation.x, orientation.y, orientation.z, headingAngle);
+
+                    g_OLED.setCursor(8*6, 3*8);  g_OLED.printf("%6.1f", RADIAN_TO_DEGREE*headingAngle);
+                    g_OLED.refresh();
+                }
+            }
+
+            // Calculate compass angle as compass deviation from original heading at start of test.
+            if (iteration == 0)
+            {
+                initialHeading = headingAngle;
+            }
+            float compassDelta = constrainAngle(headingAngle - initialHeading);
 
             bool testDone = false;
             switch (testMode)
@@ -652,12 +696,17 @@ static void testNavigateRoutine()
             }
             Navigate::Position position = g_navigate.getCurrentPosition();
 
+            // Send the current orientation over to the PC out of band of normal GDB traffic.
+            fprintf(g_pDataFile, "%f,%f,%f,%f,%f\n",
+                    orientation.w, orientation.x, orientation.y, orientation.z, headingAngle);
+
             // Display position in mm, accumulated encoder ticks, and max current seen by each motor.
             g_OLED.setCursor(8*6, 0*8);  g_OLED.printf("%7.1f", position.x);
             g_OLED.setCursor(8*6, 1*8);  g_OLED.printf("%7.1f", position.y);
             g_OLED.setCursor(8*6, 2*8);  g_OLED.printf("%6.1f", RADIAN_TO_DEGREE*position.heading);
-            g_OLED.setCursor(8*6, 3*8);  g_OLED.printf("%5ld,%5ld", stats.encoderCount.left, stats.encoderCount.right);
-            g_OLED.setCursor(8*6, 4*8);  g_OLED.printf("%4ld,%4ld\n", stats.maxCurrent_mA.left, stats.maxCurrent_mA.right);
+            g_OLED.setCursor(8*6, 3*8);  g_OLED.printf("%6.1f", RADIAN_TO_DEGREE*compassDelta);
+            g_OLED.setCursor(8*6, 4*8);  g_OLED.printf("%5ld,%5ld", stats.encoderCount.left, stats.encoderCount.right);
+            g_OLED.setCursor(8*6, 5*8);  g_OLED.printf("%4ld,%4ld\n", stats.maxCurrent_mA.left, stats.maxCurrent_mA.right);
             g_OLED.refresh();
 
             if (testDone)
