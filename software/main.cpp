@@ -754,29 +754,9 @@ static float getFloatOption(const char* pDescription, float defaultVal)
 
 static bool testDriveWaypoints(uint32_t iteration)
 {
-    // Brake the motors for N iterations before considering the test completed.
-    const uint32_t  iterationsForBraking = 25;
-    static uint32_t iterationsUntilStop = 0;
-    if (iteration == 0)
-    {
-        iterationsUntilStop = 0;
-    }
-    if (iterationsUntilStop > 0)
-    {
-        iterationsUntilStop--;
-        if (iterationsUntilStop == 0)
-        {
-            return true;
-        }
-    }
-
     g_navigate.update();
 
-    if (iterationsUntilStop == 0 && g_navigate.hasReachedFinalWaypoint())
-    {
-        iterationsUntilStop = iterationsForBraking;
-    }
-    return false;
+    return g_navigate.hasReachedFinalWaypoint();
 }
 
 static bool testTurnInPlace(float speed_mps, float angleThreshold, uint32_t iteration)

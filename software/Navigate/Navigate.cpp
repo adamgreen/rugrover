@@ -104,7 +104,12 @@ void Navigate::update()
                 if (fabsf(constrainAngle(delta.angle-m_currentPosition.heading)) < m_angleThreshold)
                 {
                     m_waypointState = DRIVE_TO_NEXT;
-                    break;
+                    // Brake the motors for one sample so that they can go in either direction on the next sample.
+                    DriveValues powers = { 0, 0 };
+                    m_pDrive->setPower(powers);
+                    // Returning instead of breaking because the braking code path uses setPower()
+                    // instead of setVelocities().
+                    return;
                 }
 
                 m_headingPID.updateSetPoint(delta.angle);
@@ -130,7 +135,7 @@ void Navigate::update()
                 if (delta.distance < m_distanceThreshold || fabsf(angleDelta) > ninetyDegrees)
                 {
                     m_zeroSamples = 0;
-                    m_waypointState = BRAKE;
+                    m_waypointState = BRAKE_BEFORE_ROTATE;
                     DriveValues powers = { 0, 0 };
                     m_pDrive->setPower(powers);
 
@@ -142,7 +147,7 @@ void Navigate::update()
                 velocities.right = distancePortion - anglePortion;
                 break;
             }
-            case BRAKE:
+            case BRAKE_BEFORE_ROTATE:
             {
                 if (m_encoderDeltas.left == 0 && m_encoderDeltas.right == 0)
                 {
@@ -169,9 +174,14 @@ void Navigate::update()
                 float angleDelta = isnan(desiredHeading) ? 0.0f : constrainAngle(desiredHeading - currentHeading);
                 if (fabsf(angleDelta) < m_angleThreshold)
                 {
-                    m_waypointIndex++;
-                    m_waypointState = ROTATE_TO_NEXT;
-                    break;
+                    m_zeroSamples = 0;
+                    m_waypointState = BRAKE_AFTER_ROTATE;
+                    DriveValues powers = { 0, 0 };
+                    m_pDrive->setPower(powers);
+
+                    // Returning instead of breaking because the braking code path uses setPower()
+                    // instead of setVelocities().
+                    return;
                 }
 
                 m_headingPID.updateSetPoint(desiredHeading);
@@ -179,6 +189,26 @@ void Navigate::update()
                 velocities.left = controlOutput;
                 velocities.right = -controlOutput;
                 break;
+            }
+            case BRAKE_AFTER_ROTATE:
+            {
+                if (m_encoderDeltas.left == 0 && m_encoderDeltas.right == 0)
+                {
+                    m_zeroSamples++;
+                }
+                if (m_zeroSamples < m_brakeSamples)
+                {
+                    // Keep manually braking and return instead of setting PID velocity.
+                    DriveValues powers = { 0, 0 };
+                    m_pDrive->setPower(powers);
+                    return;
+                }
+                else
+                {
+                    m_waypointIndex++;
+                    m_waypointState = ROTATE_TO_NEXT;
+                    break;
+                }
             }
         }
     }

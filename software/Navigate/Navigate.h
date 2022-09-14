@@ -89,8 +89,9 @@ class Navigate
         {
             ROTATE_TO_NEXT,
             DRIVE_TO_NEXT,
-            BRAKE,
-            ROTATE_TO_HEADING
+            BRAKE_BEFORE_ROTATE,
+            ROTATE_TO_HEADING,
+            BRAKE_AFTER_ROTATE
         };
 
         DifferentialDrive*  m_pDrive;
