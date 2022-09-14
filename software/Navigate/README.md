@@ -13,7 +13,7 @@ The origin of the robot's world view is its location at the time of reset. It al
 ```c++
 Navigate(DifferentialDrive* pDrive, float ticksPerRotation,
             float leftWheelDiameter_mm, float rightWheelDiameter_mm, float wheelbase_mm,
-            float distanceThreshold_mm, float angleThreshold_radians, float headingRatio,
+            float distanceThreshold_mm, float angleThreshold_radians, float headingRatio, uint32_t brakeSamples,
             float headingPidKc, float headingPidTi, float headingPidTd,
             float distancePidKc, float distancePidTi, float distancePidTd);
 ```
@@ -25,6 +25,7 @@ Navigate(DifferentialDrive* pDrive, float ticksPerRotation,
 * **distanceThreshold_mm**: How close, in mm, does the robot need to be to a waypoint before it is considered reached.
 * **angleThreshold_radians**: How close, in radians, does the robot need to be pointed towards the desired location (next waypoint, etc) before a turn is considered done.
 * **headingRatio**: The maximum turning speed while driving forward is constrained so that it doesn't exceed the current drive speed and attempt to run one of the motors in reverse. This ratio specifies how much of the current forward speed should be used for constraining the heading control loop. It should be a positive float value > 0.0f and <= 1.0f.
+* **brakeSamples**: When braking between stages, wait for this many samples to return 0 encoder ticks before considering the stop to be complete.
 * **headingPidKc, headingPidTi, headingPidTd**: These are the PID (Proportional, Integral, Derivative) parameters for the closed loop control system used for maintaining the desired heading. Currently I just use the P & I terms, leaving the D term set to 0.0f. The [calibration section](#calibration) contains notes on how I calculated them for this robot.
 * **distancePidKc, distancePidTi, distancePidTd**: These are the PID (Proportional, Integral, Derivative) parameters for the closed loop control system used for determining the forward travel speed based on distance to the next waypoint. Currently I just use the P & I terms, leaving the D term set to 0.0f. The [calibration section](#calibration) contains notes on how I calculated them for this robot.
 
@@ -182,5 +183,5 @@ These tests also generate .CSV files which can be loaded into a spreadsheet and 
 
 ## Future Improvements
 This is a pretty good start to this class but I will probably come back in the future to address a few issues:
-* Improve how well it tracks between waypoints. It sometimes takes an unexpected curvy approach.
+* ~~Improve how well it tracks between waypoints. It sometimes takes an unexpected curvy approach.~~
 * Have a way to pause at each waypoint and let the caller know when each has been reached so that it can run specific actions at waypoints. And example would be finding and touching a traffic cone when a waypoint close to the cone has been reached.
