@@ -21,6 +21,7 @@ int                      g_lastSampleCount;
 float[]                  g_rotationQuaternion = {1.0f, 0.0f, 0.0f, 0.0f};
 int                      g_fontHeight;
 PFont                    g_font;
+PShape                   g_shape;
 PMatrix3D                g_kalmanP;
 
 
@@ -32,7 +33,7 @@ void setup()
   g_font = loadFont("Monaco-24.vlw");
   textFont(g_font);
   g_fontHeight = int(textAscent() + textDescent() + 0.5f);
-
+  g_shape = loadShape("RugRover.obj");
   Client port = new Client(this, "localhost", 3334);
   g_headingSensor = new HeadingSensor(port);
   g_lastSampleCount = millis();
@@ -67,14 +68,6 @@ void draw()
     g_zeroRotation = false;
   }
 
-  // Rotate the rendered box using the calculated rotation matrix.
-  pushMatrix();
-    translate(width / 2, height / 2, 0);
-    scale(5.0f, 5.0f, 5.0f);
-    applyMatrix(rotationMatrix);
-    drawBox();
-  popMatrix();
-
   // Rotate the compass image accordingly.
   pushMatrix();
     rotate2DPlaneToFaceCamera();
@@ -82,9 +75,13 @@ void draw()
     drawCompass(headingAngle);
   popMatrix();
 
-  // Display rotation source to user.
-  fill(255);
-  rotate2DPlaneToFaceCamera();
+  directionalLight(255, 255, 255, 1, 1, 0);
+  // Rotate the rendered box using the calculated rotation matrix.
+  pushMatrix();
+    translate(width / 2, height / 2, 0);
+    applyMatrix(rotationMatrix);
+    drawBox();
+  popMatrix();
 }
 
 void rotate2DPlaneToFaceCamera()
@@ -96,55 +93,9 @@ void rotate2DPlaneToFaceCamera()
 
 void drawBox()
 {
-  // Draw four sides of box with different colours on each.
-  stroke(160);
-  fill(82, 10, 242);
-  beginShape(QUADS);
-    vertex(-25, -10, 50);
-    vertex(-25, 10, 50);
-    vertex(25, 10, 50);
-    vertex(25, -10, 50);
-  endShape();
-
-  fill(255);
-  beginShape(QUADS);
-    vertex(-25, -10, -50);
-    vertex(-25, -10, 50);
-    vertex(25, -10, 50);
-    vertex(25, -10, -50);
-  endShape();
-
-  fill(0);
-  beginShape(QUADS);
-    vertex(-25, 10, -50);
-    vertex(-25, 10, 50);
-    vertex(25, 10, 50);
-    vertex(25, 10, -50);
-  endShape();
-
-  fill(126, 209, 13);
-  beginShape(QUADS);
-    vertex(-25, -10, -50);
-    vertex(-25, 10, -50);
-    vertex(25, 10, -50);
-    vertex(25, -10, -50);
-  endShape();
-
-  fill(209, 6, 10);
-  beginShape(QUADS);
-    vertex(-25, 10, -50);
-    vertex(-25, 10, 50);
-    vertex(-25, -10, 50);
-    vertex(-25, -10, -50);
-  endShape();
-
-  fill(237, 255, 0);
-  beginShape(QUADS);
-    vertex(25, 10, -50);
-    vertex(25, 10, 50);
-    vertex(25, -10, 50);
-    vertex(25, -10, -50);
-  endShape();
+  scale(3.0f, 3.0f, 3.0f);
+  rotateX(-PI/2);
+  shape(g_shape, 0, 0);
 }
 
 void drawCompass(float angle)
