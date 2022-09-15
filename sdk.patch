@@ -206,14 +206,15 @@ diff -Naurb nrfSDK2/components/drivers_nrf/spi_master/nrf_drv_spi.h nrfSDK/compo
  /**
 diff -Naurb nrfSDK2/components/drivers_nrf/twi_master/nrf_drv_twi.c nrfSDK/components/drivers_nrf/twi_master/nrf_drv_twi.c
 --- nrfSDK2/components/drivers_nrf/twi_master/nrf_drv_twi.c	2017-05-05 14:10:54.000000000 -0700
-+++ nrfSDK/components/drivers_nrf/twi_master/nrf_drv_twi.c	2022-08-30 23:55:08.000000000 -0700
-@@ -833,10 +833,14 @@
++++ nrfSDK/components/drivers_nrf/twi_master/nrf_drv_twi.c	2022-09-09 03:41:15.000000000 -0700
+@@ -832,11 +832,15 @@
+             {
                  NRF_LOG_DEBUG("TWIM: Event: %s.\r\n", (uint32_t)EVT_TO_STR_TWIM(NRF_TWIM_EVENT_ERROR)); 
                  nrf_twim_event_clear(p_twim, NRF_TWIM_EVENT_ERROR);
-                 nrf_twim_task_trigger(p_twim, NRF_TWIM_TASK_RESUME);
 +                if (!nrf_twim_event_check(p_twim, NRF_TWIM_EVENT_STOPPED))
 +                {
 +                    /* If last byte of write was the one NAKed then STOP has already been requested via shortcut. */
+                 nrf_twim_task_trigger(p_twim, NRF_TWIM_TASK_RESUME);
                  nrf_twim_task_trigger(p_twim, NRF_TWIM_TASK_STOP);
                  evt_to_wait = NRF_TWIM_EVENT_STOPPED;
              }
@@ -221,6 +222,20 @@ diff -Naurb nrfSDK2/components/drivers_nrf/twi_master/nrf_drv_twi.c nrfSDK/compo
 +        }
  
          uint32_t errorsrc =  nrf_twim_errorsrc_get_and_clear(p_twim);
+ 
+@@ -976,6 +980,13 @@
+         NRF_LOG_DEBUG("TWIM: Event: %s.\r\n", (uint32_t)EVT_TO_STR_TWIM(NRF_TWIM_EVENT_STOPPED));
+         nrf_twim_event_clear(p_twim, NRF_TWIM_EVENT_STOPPED);
+         event.xfer_desc = p_cb->xfer_desc;
++
++        /* Handle NAK error being sent for last byte which will cause a race between STOPPED and ERROR events. */
++        if (nrf_twim_event_check(p_twim, NRF_TWIM_EVENT_ERROR))
++        {
++            nrf_twim_event_clear(p_twim, NRF_TWIM_EVENT_ERROR);
++            NRF_LOG_DEBUG("TWIM: Event: %s.\r\n", (uint32_t)EVT_TO_STR_TWIM(NRF_TWIM_EVENT_ERROR));
++        }
+         if (p_cb->error)
+         {
  
 diff -Naurb nrfSDK2/components/drivers_nrf/twi_master/nrf_drv_twi.h nrfSDK/components/drivers_nrf/twi_master/nrf_drv_twi.h
 --- nrfSDK2/components/drivers_nrf/twi_master/nrf_drv_twi.h	2017-05-05 14:10:54.000000000 -0700
@@ -299,16 +314,21 @@ diff -Naurb nrfSDK2/components/toolchain/gcc/Makefile.posix nrfSDK/components/to
  GNU_PREFIX := arm-none-eabi
 diff -Naurb nrfSDK2/components/toolchain/gcc/nrf5x_common.ld nrfSDK/components/toolchain/gcc/nrf5x_common.ld
 --- nrfSDK2/components/toolchain/gcc/nrf5x_common.ld	2017-05-05 13:10:52.000000000 -0700
-+++ nrfSDK/components/toolchain/gcc/nrf5x_common.ld	2022-09-04 22:19:04.000000000 -0700
-@@ -89,7 +89,7 @@
++++ nrfSDK/components/toolchain/gcc/nrf5x_common.ld	2022-09-11 01:46:34.000000000 -0700
+@@ -87,10 +87,10 @@
+     } > FLASH
+     __exidx_end = .;
  
-     __etext = .;
- 
+-    __etext = .;
+-
 -    .data : AT (__etext)
 +    .data :
      {
++        PROVIDE(__etext = LOADADDR(.data));
++        . = ALIGN(4);
          __data_start__ = .;
          *(vtable)
+         *(.data*)
 @@ -121,7 +121,7 @@
          /* All data end */
          __data_end__ = .;
