@@ -119,9 +119,9 @@
 // * The distance between the wheels in mm.
 #define WHEELBASE           128.1868f
 // * The diameter of the left wheel in mm.
-#define LEFT_WHEEL_DIAMETER 80.68f
+#define LEFT_WHEEL_DIAMETER 80.65f
 // * The diameter of the right wheel as a ratio of the left wheel (will be found during calibration).
-#define RIGHT_WHEEL_RATIO   0.996f
+#define RIGHT_WHEEL_RATIO   1.00f
 
 // The calculated diameter of the right wheel based on left wheel and preceding ratio.
 #define RIGHT_WHEEL_DIAMETER    (RIGHT_WHEEL_RATIO * LEFT_WHEEL_DIAMETER)
@@ -129,8 +129,8 @@
 // The frequency to be used for the motor PWM signal.
 #define MOTOR_PWM_FREQUENCY 20000
 
-// Don't allow motor current to go over 1.75A.
-#define MOTOR_MAX_CURRENT_mA    1750
+// Don't allow motor current to go over 1.5A.
+#define MOTOR_MAX_CURRENT_mA    1500
 
 /* PID constants used for the motors.
         ΔPV=15.500001
@@ -264,7 +264,7 @@ static SensorCalibration g_imuCalibration =
 
     // Correct for how device is mounted on robot.
     // The 3 element vector represents: degrees,minutes,seconds
-    .mountingCorrection = { 0.0f, 0.0f, 0.0f },
+    .mountingCorrection = { 90.0f, 0.0f, 0.0f },
 
     // These min/max configuration values were found by rotating my sensor setup
     // and noting min/max values seen in calibration sketch.
@@ -285,9 +285,9 @@ static SensorCalibration g_imuCalibration =
     // is a different axis for the sensor itself and it also accounts for the
     // scenario where each sensor (accelerometer, magnetometer, and gyro) has their
     // axis aligned differently.
-    .accelSwizzle = { -2, -3, 1 },
-    .magSwizzle = { -2, -3, 1 },
-    .gyroSwizzle = { -2, -3, 1 }
+    .accelSwizzle = { 1, -3, 2 },
+    .magSwizzle = { 1, -3, 2 },
+    .gyroSwizzle = { 1, -3, 2 }
 };
 
 // SPIM instance used for driving the OLED.
@@ -340,7 +340,7 @@ static FILE*                g_pDataFile = NULL;
 static int                  g_dbg = 0;
 
 // Which debug routine should be executed.
-static DebugRoutines        g_dbgRoutine = DEBUG_NAVIGATE;
+static DebugRoutines        g_dbgRoutine = DEBUG_IMU_ORIENTATION;
 
 
 
@@ -353,7 +353,7 @@ static void initGPIOTE_AtHighestAppPriority();
 static uint32_t displayDebugMenuAndGetOption(const char* pOptionsString, uint32_t maxOption);
 static void testNavigateRoutine();
 static float getFloatOption(const char* pDescription, float defaultVal);
-static bool testDriveWaypoints(uint32_t iteration);
+static bool testDriveWaypoints();
 static bool testTurnInPlace(float speed_mps, float angleThreshold, uint32_t iteration);
 static void testPidRoutine();
 static void sleep_us(uint32_t* pPrevTime, uint32_t delay);
@@ -584,7 +584,7 @@ static void testNavigateRoutine()
         g_navigate.setParameters(leftWheelDiameter, rightWheelDiameter, wheelbase);
         Navigate::Position straightWaypoints[] =
         {
-            { .x = 0.0f, .y = 500.0f, .heading = NAN }
+            { .x = 0.0f, .y = 2000.0f, .heading = NAN }
         };
         Navigate::Position clockwiseWaypoints[] =
         {
@@ -674,7 +674,7 @@ static void testNavigateRoutine()
                 case STRAIGHT:
                 case CLOCKWISE:
                 case COUNTERCLOCKWISE:
-                    testDone = testDriveWaypoints(iteration);
+                    testDone = testDriveWaypoints();
                     break;
                 case TURN:
                     testDone = testTurnInPlace(turnSpeed_mps, angleThreshold, iteration);
@@ -752,7 +752,7 @@ static float getFloatOption(const char* pDescription, float defaultVal)
     return strtof(input, NULL);
 }
 
-static bool testDriveWaypoints(uint32_t iteration)
+static bool testDriveWaypoints()
 {
     g_navigate.update();
 
