@@ -176,12 +176,16 @@ CFLAGS += -mfloat-abi=hard -mfpu=fpv4-sp-d16
 # keep every function in separate section, this allows linker to discard unused ones
 CFLAGS += -ffunction-sections -fdata-sections -fno-strict-aliasing
 CFLAGS += -fno-builtin --short-enums
+# Disable function cloning as it grows the code and explodes hardware breakpoint requirements.
+CFLAGS += -fno-ipa-cp-clone
 
 # Disabling inlining tends to make debugging easier.
 CFLAGS += -fno-inline
 
 # C++ flags common to all targets
 CXXFLAGS += -fno-rtti
+# Don't want exception handling enabled for embedded builds, to shrink size.
+CXXFLAGS += -fno-exceptions
 # Don't wrap function static object instantiation in guards since we are single threaded.
 CXXFLAGS += -fno-threadsafe-statics
 
