@@ -67,7 +67,7 @@ void OrientationKalmanFilter::calibrate(const SensorCalibration* pCalibration)
     m_mountingCorrection = angleFromDegreeMinuteSecond(&m_calibration.mountingCorrection);
 }
 
-float OrientationKalmanFilter::angleFromDegreeMinuteSecond(Vector<float>* pAngle)
+float OrientationKalmanFilter::angleFromDegreeMinuteSecond(Vector3<float>* pAngle)
 {
     float angleInDegrees;
 
@@ -112,7 +112,7 @@ Quaternion OrientationKalmanFilter::getOrientation(SensorCalibratedValues* pCali
     m_gyroTimeScaleFactor = sampleTime_us / (2.0f * 1000000.0f);
 
     // Swizzle the axis so that gyro's axis match overall sensor setup.
-    Vector<float> gyro = Vector<float>::createFromSwizzledSource(m_calibration.gyroSwizzle, pCalibratedValues->gyro);
+    Vector3<float> gyro = Vector3<float>::createFromSwizzledSource(m_calibration.gyroSwizzle, pCalibratedValues->gyro);
 
     // Construct matrix which applies gyro rates (derivatives) to quaternion.
     // This will be the A matrix for the system model.
@@ -182,8 +182,8 @@ Quaternion OrientationKalmanFilter::getOrientationFromAccelerometerMagnetometerM
 {
     // Setup gravity (down) and north vectors.
     // NOTE: The fields are swizzled to make the axis on the device match the axis on the screen.
-    Vector<float> down = Vector<float>::createFromSwizzledSource(m_calibration.accelSwizzle, pCalibratedValues->accel);
-    Vector<float> north = Vector<float>::createFromSwizzledSource(m_calibration.magSwizzle, pCalibratedValues->mag);
+    Vector3<float> down = Vector3<float>::createFromSwizzledSource(m_calibration.accelSwizzle, pCalibratedValues->accel);
+    Vector3<float> north = Vector3<float>::createFromSwizzledSource(m_calibration.magSwizzle, pCalibratedValues->mag);
 
     // Project the north vector onto the earth surface plane, for which gravity is the surface normal.
     //  north.dotProduct(downNormalized) = north.magnitude * cos(theta)  NOTE: downNormalized.magnitude = 1.0f
@@ -196,13 +196,13 @@ Quaternion OrientationKalmanFilter::getOrientationFromAccelerometerMagnetometerM
     //  north = north.subtract(northProjectedToGravityNormal)
     //   Follow this projected vector down the surface normal to the plane representing the earth's surface.
     down.normalize();
-    Vector<float> northProjectedToGravityNormal = down.multiply(north.dotProduct(down));
+    Vector3<float> northProjectedToGravityNormal = down.multiply(north.dotProduct(down));
     north = north.subtract(northProjectedToGravityNormal);
     north.normalize();
 
     // To create a rotation matrix, we need all 3 basis vectors so calculate the vector which
     // is orthogonal to both the down and north vectors (ie. the normalized cross product).
-    Vector<float> west = north.crossProduct(down);
+    Vector3<float> west = north.crossProduct(down);
     west.normalize();
     Quaternion rotationQuaternion = Quaternion::createFromBasisVectors(north, down, west);
 

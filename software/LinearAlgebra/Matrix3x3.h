@@ -15,7 +15,7 @@
 
 #include <arm_math.h>
 #include <string.h>
-#include <AdafruitPrecision9DoF/Vector.h>
+#include <LinearAlgebra/Vector3.h>
 
 class Matrix3x3
 {
@@ -47,9 +47,9 @@ public:
         memset(m_data, 0, sizeof(m_data));
     }
 
-    Vector<float> multiply(const Vector<float>& v) const
+    Vector3<float> multiply(const Vector3<float>& v) const
     {
-        Vector<float> prod;
+        Vector3<float> prod;
 
         prod.x = m_00*v.x + m_01*v.y + m_02*v.z;
         prod.y = m_10*v.x + m_11*v.y + m_12*v.z;

@@ -632,8 +632,8 @@ static void testNavigateRoutine(bool useCompassHeading)
 
         float initialHeading = 0.0f;
         NavigateSystemState prevSystemState;
-        Vector<double> sum;
-        Vector<double> sumSquared;
+        Vector3<double> sum;
+        Vector3<double> sumSquared;
         uint32_t iteration = 0;
         uint32_t prevDumpTime = micros();
         while (true)
@@ -725,7 +725,7 @@ static void testNavigateRoutine(bool useCompassHeading)
                 NavigateSystemState actualSystemState(position.heading, turnRate, 0.0f);
                 NavigateSystemState diffSystemState = estimatedSystemState.subtract(actualSystemState);
                 diffSystemState.m_heading = constrainAngle(diffSystemState.m_heading);
-                Vector<double> diffDouble(diffSystemState.x, diffSystemState.y, diffSystemState.z);
+                Vector3<double> diffDouble(diffSystemState.x, diffSystemState.y, diffSystemState.z);
                 sum = sum.add(diffDouble);
                 sumSquared = sumSquared.add(diffDouble.multiply(diffDouble));
                 prevSystemState = actualSystemState;
@@ -773,8 +773,8 @@ static void testNavigateRoutine(bool useCompassHeading)
 
         if (DEBUG_CALCULATE_STATS_FOR_SYSTEM_MODEL)
         {
-            Vector<double> mean = sum.multiply(1.0/iteration);
-            Vector<double> variance = sumSquared.subtract(sum.multiply(sum).multiply(1.0/iteration)).multiply(1.0/(iteration-1));
+            Vector3<double> mean = sum.multiply(1.0/iteration);
+            Vector3<double> variance = sumSquared.subtract(sum.multiply(sum).multiply(1.0/iteration)).multiply(1.0/(iteration-1));
             printf("model mean:%f,%f,%f\n", mean.x, mean.y, mean.z);
             printf("model variance:%f,%f,%f\n", variance.x, variance.y, variance.z);
         }

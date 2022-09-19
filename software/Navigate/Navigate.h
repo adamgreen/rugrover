@@ -17,21 +17,21 @@
 #include <stdint.h>
 #include <math.h>
 #include <DifferentialDrive/DifferentialDrive.h>
-#include <AdafruitPrecision9DoF/Vector.h>
-#include "Matrix3x3.h"
+#include <LinearAlgebra/Vector3.h>
+#include <LinearAlgebra/Matrix3x3.h>
 
 
 // Macros to convert between radians and degrees.
 #define RADIAN_TO_DEGREE (180.0f/(float)M_PI)
 #define DEGREE_TO_RADIAN ((float)M_PI/180.0f)
 
-// Give more descriptive names of system state variables to x, y, z components of Vector class.
+// Give more descriptive names of system state variables to x, y, z components of Vector3 class.
 // They are in radians for heading and radians/second for the others.
 #define m_heading               x
 #define m_angleRateWithError    y
 #define m_angleRateError        z
 
-typedef Vector<float> NavigateSystemState;
+typedef Vector3<float> NavigateSystemState;
 
 class Navigate
 {

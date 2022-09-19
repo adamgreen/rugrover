@@ -21,16 +21,16 @@
 #ifndef ORIENTATION_KALMAN_FILTER_H_
 #define ORIENTATION_KALMAN_FILTER_H_
 
-#include "Quaternion.h"
-#include "Vector.h"
-#include "Matrix4x4.h"
+#include <LinearAlgebra/Quaternion.h>
+#include <LinearAlgebra/Vector3.h>
+#include <LinearAlgebra/Matrix4x4.h>
 #include "AdafruitPrecision9DoF.h"
 
 struct SensorCalibratedValues
 {
-    Vector<float> accel;
-    Vector<float> mag;
-    Vector<float> gyro;
+    Vector3<float> accel;
+    Vector3<float> mag;
+    Vector3<float> gyro;
 };
 
 struct SensorCalibration
@@ -38,18 +38,18 @@ struct SensorCalibration
     float             initialVariance;
     float             gyroVariance;
     float             accelMagVariance;
-    Vector<float>     gyroCoefficientA;
-    Vector<float>     gyroCoefficientB;
-    Vector<float>     gyroScale;
-    Vector<float>     declinationCorrection;
-    Vector<float>     mountingCorrection;
-    Vector<int16_t>   accelMin;
-    Vector<int16_t>   accelMax;
-    Vector<int16_t>   magMin;
-    Vector<int16_t>   magMax;
-    Vector<int16_t>   accelSwizzle;
-    Vector<int16_t>   magSwizzle;
-    Vector<int16_t>   gyroSwizzle;
+    Vector3<float>    gyroCoefficientA;
+    Vector3<float>    gyroCoefficientB;
+    Vector3<float>    gyroScale;
+    Vector3<float>    declinationCorrection;
+    Vector3<float>    mountingCorrection;
+    Vector3<int16_t>  accelMin;
+    Vector3<int16_t>  accelMax;
+    Vector3<int16_t>  magMin;
+    Vector3<int16_t>  magMax;
+    Vector3<int16_t>  accelSwizzle;
+    Vector3<int16_t>  magSwizzle;
+    Vector3<int16_t>  gyroSwizzle;
 };
 
 
@@ -72,7 +72,7 @@ public:
 protected:
     void         resetKalmanFilter(SensorCalibratedValues* pCalibratedValues);
     Quaternion   getOrientationFromAccelerometerMagnetometerMeasurements(SensorCalibratedValues* pCalibratedValues);
-    static float angleFromDegreeMinuteSecond(Vector<float>* pAngle);
+    static float angleFromDegreeMinuteSecond(Vector3<float>* pAngle);
 
     SensorCalibration       m_calibration;
     SensorCalibratedValues  m_midpoints;

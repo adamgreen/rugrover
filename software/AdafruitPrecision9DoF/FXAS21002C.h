@@ -14,7 +14,7 @@
 #ifndef FXAS21002C_H_
 #define FXAS21002C_H_
 
-#include "Vector.h"
+#include <LinearAlgebra/Vector3.h>
 #include "SensorBase.h"
 
 
@@ -25,7 +25,7 @@ public:
     bool init();
 
     // There will be 2 I2C transfers completed to pNotify interface if supplied.
-    void getVector(Vector<int16_t>* pVector, int16_t* pTemperature, II2CNotification* pNotify);
+    void getVector(Vector3<int16_t>* pVector, int16_t* pTemperature, II2CNotification* pNotify);
 
 protected:
     // Method called in when a I2C operation is completed.
@@ -33,10 +33,10 @@ protected:
 
     bool initGyro();
 
-    Vector<int16_t>* m_pVector;
-    int16_t*         m_pTemperature;
-    char             m_bigEndianData[sizeof(int16_t)*3];
-    int8_t           m_temp;
+    Vector3<int16_t>* m_pVector;
+    int16_t*          m_pTemperature;
+    char              m_bigEndianData[sizeof(int16_t)*3];
+    int8_t            m_temp;
 };
 
 #endif /* FXAS21002C_H_ */

@@ -18,24 +18,24 @@
 
 
 template <class T>
-class Vector
+class Vector3
 {
 public:
-    Vector(T x, T y, T z)
+    Vector3(T x, T y, T z)
     {
         this->x = x;
         this->y = y;
         this->z = z;
     }
 
-    Vector()
+    Vector3()
     {
         clear();
     }
 
-    static Vector<T> createFromSwizzledSource(Vector<int16_t>& swizzle, Vector<T>& v)
+    static Vector3<T> createFromSwizzledSource(Vector3<int16_t>& swizzle, Vector3<T>& v)
     {
-        Vector<T> newVector;
+        Vector3<T> newVector;
 
         for (int i = 0 ; i < 3 ; i++)
         {
@@ -90,36 +90,36 @@ public:
         z *= magInverse;
     }
 
-    T dotProduct(const Vector<T>& v) const
+    T dotProduct(const Vector3<T>& v) const
     {
         return x * v.x + y * v.y + z * v.z;
     }
 
-    Vector<T> crossProduct(const Vector<T>& v) const
+    Vector3<T> crossProduct(const Vector3<T>& v) const
     {
-        return Vector<T>(y*v.z - z*v.y,
+        return Vector3<T>(y*v.z - z*v.y,
                          z*v.x - x*v.z,
                          x*v.y - y*v.x);
     }
 
-    Vector<T> multiply(T scalar) const
+    Vector3<T> multiply(T scalar) const
     {
-        return Vector<T>(x * scalar, y * scalar, z * scalar);
+        return Vector3<T>(x * scalar, y * scalar, z * scalar);
     }
 
-    Vector<T> multiply(const Vector<T> v) const
+    Vector3<T> multiply(const Vector3<T> v) const
     {
-        return Vector<T>(x * v.x, y * v.y, z * v.z);
+        return Vector3<T>(x * v.x, y * v.y, z * v.z);
     }
 
-    Vector<T> add(const Vector<T>& v) const
+    Vector3<T> add(const Vector3<T>& v) const
     {
-        return Vector<T>(x + v.x, y + v.y, z + v.z);
+        return Vector3<T>(x + v.x, y + v.y, z + v.z);
     }
 
-    Vector<T> subtract(const Vector<T>& v) const
+    Vector3<T> subtract(const Vector3<T>& v) const
     {
-        return Vector<T>(x - v.x, y - v.y, z - v.z);
+        return Vector3<T>(x - v.x, y - v.y, z - v.z);
     }
 
     T x;

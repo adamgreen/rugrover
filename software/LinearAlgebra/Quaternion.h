@@ -13,7 +13,7 @@
 #ifndef QUATERNION_H_
 #define QUATERNION_H_
 
-#include "Vector.h"
+#include <LinearAlgebra/Vector3.h>
 
 class Quaternion
 {
@@ -31,7 +31,7 @@ public:
         clear();
     }
 
-    static Quaternion createFromBasisVectors(Vector<float>& row0, Vector<float>& row1, Vector<float>& row2)
+    static Quaternion createFromBasisVectors(Vector3<float>& row0, Vector3<float>& row1, Vector3<float>& row2)
     {
         // Convert the basis vectors (rotation matrix) into a normalized quaternion.
         float w = 0.0f;

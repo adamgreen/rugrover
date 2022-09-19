@@ -348,7 +348,7 @@ bool FXOS8700CQ::initAccelerometer(int32_t sampleRateHz)
     return true;
 }
 
-void FXOS8700CQ::getVectors(Vector<int16_t>* pAccelVector, Vector<int16_t>* pMagVector, II2CNotification* pNotify)
+void FXOS8700CQ::getVectors(Vector3<int16_t>* pAccelVector, Vector3<int16_t>* pMagVector, II2CNotification* pNotify)
 {
     // Can only be called in async mode.
     ASSERT ( pNotify != NULL );

@@ -21,15 +21,15 @@
 #include "I2CAsync/I2CAsync.h"
 #include "FXOS8700CQ.h"
 #include "FXAS21002C.h"
-#include "Vector.h"
+#include <LinearAlgebra/Vector3.h>
 
 struct SensorValues
 {
-    uint32_t        samplePeriod_us;
-    Vector<int16_t> accel;
-    Vector<int16_t> mag;
-    Vector<int16_t> gyro;
-    int16_t         gyroTemperature;
+    uint32_t         samplePeriod_us;
+    Vector3<int16_t> accel;
+    Vector3<int16_t> mag;
+    Vector3<int16_t> gyro;
+    int16_t          gyroTemperature;
 };
 
 

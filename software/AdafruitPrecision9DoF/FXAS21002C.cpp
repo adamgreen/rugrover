@@ -144,7 +144,7 @@ bool FXAS21002C::initGyro()
     return true;
 }
 
-void FXAS21002C::getVector(Vector<int16_t>* pVector, int16_t* pTemperature, II2CNotification* pNotify)
+void FXAS21002C::getVector(Vector3<int16_t>* pVector, int16_t* pTemperature, II2CNotification* pNotify)
 {
     // Can only be called in async mode.
     ASSERT ( pNotify != NULL );

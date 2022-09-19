@@ -15,7 +15,7 @@
 #define FXOS8700CQ_H_
 
 #include "SensorBase.h"
-#include "Vector.h"
+#include <LinearAlgebra/Vector3.h>
 
 
 class FXOS8700CQ : protected SensorBase
@@ -25,7 +25,7 @@ public:
     bool init();
 
     // There will be 1 I2C transfer completed to pNotify interface if supplied.
-    void getVectors(Vector<int16_t>* pAccelVector, Vector<int16_t>* pMagVector, II2CNotification* pNotify);
+    void getVectors(Vector3<int16_t>* pAccelVector, Vector3<int16_t>* pMagVector, II2CNotification* pNotify);
 
 protected:
     // Method called in when a I2C operation is completed.
@@ -36,9 +36,9 @@ protected:
     bool initAccelerometer(int32_t sampleRateHz);
 
     // Need enough space for 3-axis of magnetometer and accelerometer readings (16-bits per axis).
-    Vector<int16_t>* m_pAccelVector;
-    Vector<int16_t>* m_pMagVector;
-    uint8_t          m_buffer[sizeof(int16_t)*(3+3)];
+    Vector3<int16_t>* m_pAccelVector;
+    Vector3<int16_t>* m_pMagVector;
+    uint8_t           m_buffer[sizeof(int16_t)*(3+3)];
 };
 
 #endif /* FXOS8700CQ_H_ */
