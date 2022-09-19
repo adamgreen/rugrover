@@ -57,6 +57,12 @@
 
 
 
+// Parameters to turn on/off more expensive code that is mostly used for testing/debugging.
+// Should the navigate code calculate statistics about the mean and variance of the system model. Useful for
+// determining what the Q covariance matrix for the model should be.
+#define DEBUG_CALCULATE_STATS_FOR_SYSTEM_MODEL  false
+
+
 // Blink this LED (LED4 on nRF52-DK) to show progress.
 #define BLINK_LED_PIN   20
 
@@ -212,12 +218,13 @@
 enum DebugRoutines
 {
     DEBUG_NAVIGATE = 1,
-    DEBUG_PID = 2,
-    DEBUG_PID_SPEED_CALIBRATE = 3,
-    DEBUG_PID_HEADING_CALIBRATE = 4,
-    DEBUG_PID_DISTANCE_CALIBRATE = 5,
-    DEBUG_IMU_RAW = 6,
-    DEBUG_IMU_ORIENTATION = 7,
+    DEBUG_NAVIGATE_WITH_IMU = 2,
+    DEBUG_PID = 3,
+    DEBUG_PID_SPEED_CALIBRATE = 4,
+    DEBUG_PID_HEADING_CALIBRATE = 5,
+    DEBUG_PID_DISTANCE_CALIBRATE = 6,
+    DEBUG_IMU_RAW = 7,
+    DEBUG_IMU_ORIENTATION = 8,
     DEBUG_MAX
 };
 
@@ -340,7 +347,7 @@ static FILE*                g_pDataFile = NULL;
 static int                  g_dbg = 0;
 
 // Which debug routine should be executed.
-static DebugRoutines        g_dbgRoutine = DEBUG_IMU_ORIENTATION;
+static DebugRoutines        g_dbgRoutine = DEBUG_NAVIGATE;
 
 
 
@@ -351,9 +358,9 @@ static void initI2C();
 static void configureI2CPinsToDisablePullUpAndUseHigherCurrentSinkTo0V();
 static void initGPIOTE_AtHighestAppPriority();
 static uint32_t displayDebugMenuAndGetOption(const char* pOptionsString, uint32_t maxOption);
-static void testNavigateRoutine();
+static void testNavigateRoutine(bool useCompassHeading);
 static float getFloatOption(const char* pDescription, float defaultVal);
-static bool testDriveWaypoints();
+static bool testDriveWaypoints(bool useCompassHeading, float compassHeading);
 static bool testTurnInPlace(float speed_mps, float angleThreshold, uint32_t iteration);
 static void testPidRoutine();
 static void sleep_us(uint32_t* pPrevTime, uint32_t delay);
@@ -405,7 +412,11 @@ int main(void)
         switch (g_dbgRoutine)
         {
             case DEBUG_NAVIGATE:
-                testNavigateRoutine();
+                testNavigateRoutine(false);
+                break;
+            case DEBUG_NAVIGATE_WITH_IMU:
+                testNavigateRoutine(true);
+                break;
             case DEBUG_PID:
                 testPidRoutine();
                 break;
@@ -430,12 +441,13 @@ int main(void)
 
         g_dbgRoutine = (DebugRoutines)displayDebugMenuAndGetOption(
                                         "1. Test Navigate\n"
-                                        "2. Test PID\n"
-                                        "3. Run Speed PID calibration\n"
-                                        "4. Run Heading PID calibration\n"
-                                        "5. Run Distance PID calibration\n"
-                                        "6. Test IMU Raw\n"
-                                        "7. Test IMU Orientation\n", DEBUG_MAX);
+                                        "2. Test Navigate with Compass\n"
+                                        "3. Test PID\n"
+                                        "4. Run Speed PID calibration\n"
+                                        "5. Run Heading PID calibration\n"
+                                        "6. Run Distance PID calibration\n"
+                                        "7. Test IMU Raw\n"
+                                        "8. Test IMU Orientation\n", DEBUG_MAX);
     }
 }
 
@@ -519,8 +531,9 @@ static uint32_t displayDebugMenuAndGetOption(const char* pOptionsString, uint32_
     }
 }
 
-static void testNavigateRoutine()
+static void testNavigateRoutine(bool useCompassHeading)
 {
+    DriveValues zeroPower{0, 0};
     float leftWheelDiameter = LEFT_WHEEL_DIAMETER;
     float rightWheelDiameter = RIGHT_WHEEL_DIAMETER;
     float wheelRatio = rightWheelDiameter / leftWheelDiameter;
@@ -581,7 +594,7 @@ static void testNavigateRoutine()
 
         g_navigate.reset();
 
-        g_navigate.setParameters(leftWheelDiameter, rightWheelDiameter, wheelbase);
+        g_navigate.setWheelDimensions(leftWheelDiameter, rightWheelDiameter, wheelbase);
         Navigate::Position straightWaypoints[] =
         {
             { .x = 0.0f, .y = 2000.0f, .heading = NAN }
@@ -614,8 +627,13 @@ static void testNavigateRoutine()
         }
         g_orientation.reset();
         g_navigate.setWaypointVelocities(driveSpeed_mps, turnSpeed_mps);
+        g_drive.setPower(zeroPower);
         g_drive.enable();
+
         float initialHeading = 0.0f;
+        NavigateSystemState prevSystemState;
+        Vector<double> sum;
+        Vector<double> sumSquared;
         uint32_t iteration = 0;
         uint32_t prevDumpTime = micros();
         while (true)
@@ -623,6 +641,7 @@ static void testNavigateRoutine()
             uint32_t   imuIterations = 1;
             Quaternion orientation;
             float      headingAngle;
+            float      sampleTime_us;
 
             // Give the Kalman filter some time to stabilize on the first iteration.
             if (iteration == 0)
@@ -648,6 +667,7 @@ static void testNavigateRoutine()
                 SensorCalibratedValues calibratedValues = g_orientation.calibrateSensorValues(&sensorValues);
                 orientation = g_orientation.getOrientation(&calibratedValues, sensorValues.samplePeriod_us);
                 headingAngle = g_orientation.getHeading(&orientation);
+                sampleTime_us = sensorValues.samplePeriod_us;
 
                 if (i > 0)
                 {
@@ -674,7 +694,7 @@ static void testNavigateRoutine()
                 case STRAIGHT:
                 case CLOCKWISE:
                 case COUNTERCLOCKWISE:
-                    testDone = testDriveWaypoints();
+                    testDone = testDriveWaypoints(useCompassHeading, compassDelta);
                     break;
                 case TURN:
                     testDone = testTurnInPlace(turnSpeed_mps, angleThreshold, iteration);
@@ -696,6 +716,21 @@ static void testNavigateRoutine()
             }
             Navigate::Position position = g_navigate.getCurrentPosition();
 
+            // Calculate statistics about how much system model differs from the real world.
+            if (DEBUG_CALCULATE_STATS_FOR_SYSTEM_MODEL)
+            {
+                float sampleTime_sec = sampleTime_us / 1000000.0f;
+                NavigateSystemState estimatedSystemState = g_navigate.applySystemModel(prevSystemState, sampleTime_sec);
+                float turnRate = constrainAngle(position.heading - prevSystemState.m_heading) / sampleTime_sec;
+                NavigateSystemState actualSystemState(position.heading, turnRate, 0.0f);
+                NavigateSystemState diffSystemState = estimatedSystemState.subtract(actualSystemState);
+                diffSystemState.m_heading = constrainAngle(diffSystemState.m_heading);
+                Vector<double> diffDouble(diffSystemState.x, diffSystemState.y, diffSystemState.z);
+                sum = sum.add(diffDouble);
+                sumSquared = sumSquared.add(diffDouble.multiply(diffDouble));
+                prevSystemState = actualSystemState;
+            }
+
             // Send the current orientation over to the PC out of band of normal GDB traffic.
             fprintf(g_pDataFile, "%f,%f,%f,%f,%f\n",
                     orientation.w, orientation.x, orientation.y, orientation.z, headingAngle);
@@ -709,6 +744,7 @@ static void testNavigateRoutine()
             g_OLED.setCursor(8*6, 5*8);  g_OLED.printf("%4ld,%4ld\n", stats.maxCurrent_mA.left, stats.maxCurrent_mA.right);
             g_OLED.refresh();
 
+            iteration++;
             if (testDone)
             {
                 g_OLED.refreshAndBlock();
@@ -730,12 +766,18 @@ static void testNavigateRoutine()
                 prevDumpTime = currTime;
                 count = 0;
             }
-
-            iteration++;
         }
         printf("Dumping to test_navigate.csv...\n");
         g_navigate.dumpLog("test_navigate.csv");
         printf("Done.\n");
+
+        if (DEBUG_CALCULATE_STATS_FOR_SYSTEM_MODEL)
+        {
+            Vector<double> mean = sum.multiply(1.0/iteration);
+            Vector<double> variance = sumSquared.subtract(sum.multiply(sum).multiply(1.0/iteration)).multiply(1.0/(iteration-1));
+            printf("model mean:%f,%f,%f\n", mean.x, mean.y, mean.z);
+            printf("model variance:%f,%f,%f\n", variance.x, variance.y, variance.z);
+        }
     }
 }
 
@@ -752,9 +794,16 @@ static float getFloatOption(const char* pDescription, float defaultVal)
     return strtof(input, NULL);
 }
 
-static bool testDriveWaypoints()
+static bool testDriveWaypoints(bool useCompassHeading, float compassHeading)
 {
-    g_navigate.update();
+    if (useCompassHeading)
+    {
+        g_navigate.update(compassHeading);
+    }
+    else
+    {
+        g_navigate.update();
+    }
 
     return g_navigate.hasReachedFinalWaypoint();
 }

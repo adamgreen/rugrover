@@ -11,9 +11,9 @@
     GNU General Public License for more details.
 */
 // Class to navigate the RugRover using the DifferentialDrive driver.
-#include <Navigate/Navigate.h>
 #include <string.h>
 #include <nrf_assert.h>
+#include "Navigate.h"
 
 
 struct LogEntry
@@ -31,7 +31,10 @@ Navigate::Navigate(DifferentialDrive* pDrive, float ticksPerRotation,
                   float headingPidKc, float headingPidTi, float headingPidTd,
                   float distancePidKc, float distancePidTi, float distancePidTd)
 : m_headingPID(headingPidKc, headingPidTi, headingPidTd, 0.0f, -0.5f, 0.5f, 1.0f/pDrive->getPidFrequency()),
-  m_distancePID(distancePidKc, distancePidTi, distancePidTd, 0.0f, -0.5f, 0.5f, 1.0f/pDrive->getPidFrequency())
+  m_distancePID(distancePidKc, distancePidTi, distancePidTd, 0.0f, -0.5f, 0.5f, 1.0f/pDrive->getPidFrequency()),
+  m_A(1.0f, 1.0f/100.0f, -1.0/100.0f,
+      0.0f, 1.0f,        0.0f,
+      0.0f, 0.0f,        1.0f)
 {
     ASSERT ( pDrive != NULL );
 
@@ -48,13 +51,13 @@ Navigate::Navigate(DifferentialDrive* pDrive, float ticksPerRotation,
     m_pLog = NULL;
     m_pLogCurr = NULL;
     m_logSize = 0;
-    setParameters(leftWheelDiameter_mm, rightWheelDiameter_mm, wheelbase_mm);
+    setWheelDimensions(leftWheelDiameter_mm, rightWheelDiameter_mm, wheelbase_mm);
     reset();
     memset(&m_prevTicks, 0, sizeof(m_prevTicks));
     memset(&m_encoderDeltas, 0, sizeof(m_encoderDeltas));
 }
 
-void Navigate::setParameters(float leftWheelDiameter_mm, float rightWheelDiameter_mm, float wheelbase_mm)
+void Navigate::setWheelDimensions(float leftWheelDiameter_mm, float rightWheelDiameter_mm, float wheelbase_mm)
 {
     m_wheelDiameters_mm.left = leftWheelDiameter_mm;
     m_wheelDiameters_mm.right = rightWheelDiameter_mm;
@@ -78,14 +81,26 @@ void Navigate::reset()
     }
 }
 
+void Navigate::update(float compassHeading)
+{
+    bool useCompassHeading = true;
+    updateInternal(useCompassHeading, compassHeading);
+}
+
 void Navigate::update()
+{
+    bool useCompassHeading = false;
+    updateInternal(useCompassHeading, 0.0f);
+}
+
+void Navigate::updateInternal(bool useCompassHeading, float compassHeading)
 {
     if (!m_pDrive->isEnabled())
     {
         return;
     }
 
-    updateCurrentPosition();
+    updateCurrentPosition(useCompassHeading, compassHeading);
 
     DriveFloatValues velocities =
     {
@@ -218,20 +233,6 @@ void Navigate::update()
     m_pDrive->setVelocity(velocities);
 }
 
-float Navigate::roundMagnitudeUpTo1(float velocity)
-{
-    if (velocity > 0.0f && velocity < 1.0f)
-    {
-        velocity = 1.0f;
-    }
-    else if (velocity < 0.0f && velocity > -1.0f)
-    {
-        velocity = -1.0f;
-    }
-
-    return velocity;
-}
-
 void Navigate::drive(DriveFloatValues& velocities_mps)
 {
     if (!m_pDrive->isEnabled())
@@ -239,7 +240,7 @@ void Navigate::drive(DriveFloatValues& velocities_mps)
         return;
     }
 
-    updateCurrentPosition();
+    updateCurrentPosition(false, 0.0f);
     DriveFloatValues velocities =
     {
         .left = velocities_mps.left * m_speedConversions.left,
@@ -248,13 +249,20 @@ void Navigate::drive(DriveFloatValues& velocities_mps)
     m_pDrive->setVelocity(velocities);
 }
 
-void Navigate::updateCurrentPosition()
+void Navigate::updateCurrentPosition(bool useCompassHeading, float compassHeading)
 {
     DifferentialDrive::DriveStats stats = m_pDrive->getStats();
     m_encoderDeltas.left = stats.encoderCount.left - m_prevTicks.left;
     m_encoderDeltas.right = stats.encoderCount.right - m_prevTicks.right;
     PositionDelta delta = calculateMovementAmount(m_encoderDeltas);
-    m_currentPosition.heading = constrainAngle(m_currentPosition.heading + delta.angle);
+    if (useCompassHeading)
+    {
+        m_currentPosition.heading = compassHeading;
+    }
+    else
+    {
+        m_currentPosition.heading = constrainAngle(m_currentPosition.heading + delta.angle);
+    }
     m_currentPosition.x += delta.distance * sinf(m_currentPosition.heading);
     m_currentPosition.y += delta.distance * cosf(m_currentPosition.heading);
 
@@ -305,6 +313,20 @@ Navigate::PositionDelta Navigate::deltaToNextWaypoint()
     return delta;
 }
 
+float Navigate::roundMagnitudeUpTo1(float velocity)
+{
+    if (velocity > 0.0f && velocity < 1.0f)
+    {
+        velocity = 1.0f;
+    }
+    else if (velocity < 0.0f && velocity > -1.0f)
+    {
+        velocity = -1.0f;
+    }
+
+    return velocity;
+}
+
 void Navigate::setWaypointVelocities(float driveVelocity_mps, float turnVelocity_mps)
 {
     m_distancePID.setControlLimits(-driveVelocity_mps, driveVelocity_mps);
@@ -323,6 +345,21 @@ float Navigate::calculateTicksToMM(float wheelDiameter_mm)
     // ticks * circumference_mm/rev * 1rev/ticks
     return ((float)M_PI * wheelDiameter_mm) / m_ticksPerRotation;
 }
+
+
+NavigateSystemState Navigate::applySystemModel(const NavigateSystemState& currState, float period_sec)
+{
+    // Update the time based components of the A matrix with the latest interval.
+    m_A.m_01 = period_sec;
+    m_A.m_02 = -period_sec;
+
+    NavigateSystemState newState = m_A.multiply(currState);
+    newState.m_heading = constrainAngle(newState.m_heading);
+
+    return newState;
+}
+
+
 
 void Navigate::setLogBuffer(void* pLog, size_t logSize)
 {

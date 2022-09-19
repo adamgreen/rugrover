@@ -56,7 +56,7 @@ public:
         memset(m_data, 0, sizeof(m_data));
     }
 
-    Quaternion multiply(Quaternion& q)
+    Quaternion multiply(const Quaternion& q) const
     {
         Quaternion prod;
 
@@ -68,7 +68,7 @@ public:
         return prod;
     }
 
-    Matrix4x4 multiply(Matrix4x4& m)
+    Matrix4x4 multiply(const Matrix4x4& m) const
     {
         Matrix4x4 prod;
 
@@ -95,7 +95,7 @@ public:
         return prod;
     }
 
-    Matrix4x4 multiplyTransposed(Matrix4x4& m)
+    Matrix4x4 multiplyTransposed(const Matrix4x4& m) const
     {
         Matrix4x4 prod;
 
@@ -122,7 +122,7 @@ public:
         return prod;
     }
 
-    Matrix4x4 inverse()
+    Matrix4x4 inverse() const
     {
         Matrix4x4               result;
         arm_matrix_instance_f32 instanceIn = {4, 4, (float*)m_data};
@@ -133,7 +133,7 @@ public:
         return result;
     }
 
-    Matrix4x4 add(Matrix4x4& m)
+    Matrix4x4 add(const Matrix4x4& m) const
     {
         Matrix4x4 sum;
 
@@ -162,7 +162,7 @@ public:
 
     // This function is an optimization of the general add() method which can be used when parameter m is known to only
     // contain zeroes in its non-diagonal elements.
-    Matrix4x4 addDiagonal(Matrix4x4& m)
+    Matrix4x4 addDiagonal(const Matrix4x4& m) const
     {
         Matrix4x4 sum;
 
@@ -189,7 +189,7 @@ public:
         return sum;
     }
 
-    Matrix4x4 subtract(Matrix4x4& m)
+    Matrix4x4 subtract(const Matrix4x4& m) const
     {
         Matrix4x4 sum;
 

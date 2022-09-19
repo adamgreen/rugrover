@@ -17,12 +17,21 @@
 #include <stdint.h>
 #include <math.h>
 #include <DifferentialDrive/DifferentialDrive.h>
+#include <AdafruitPrecision9DoF/Vector.h>
+#include "Matrix3x3.h"
 
 
 // Macros to convert between radians and degrees.
 #define RADIAN_TO_DEGREE (180.0f/(float)M_PI)
 #define DEGREE_TO_RADIAN ((float)M_PI/180.0f)
 
+// Give more descriptive names of system state variables to x, y, z components of Vector class.
+// They are in radians for heading and radians/second for the others.
+#define m_heading               x
+#define m_angleRateWithError    y
+#define m_angleRateError        z
+
+typedef Vector<float> NavigateSystemState;
 
 class Navigate
 {
@@ -33,7 +42,7 @@ class Navigate
                  float headingPidKc, float headingPidTi, float headingPidTd,
                  float distancePidKc, float distancePidTi, float distancePidTd);
 
-        void setParameters(float leftWheelDiameter_mm, float rightWheelDiameter_mm, float wheelbase_mm);
+        void setWheelDimensions(float leftWheelDiameter_mm, float rightWheelDiameter_mm, float wheelbase_mm);
         void reset();
 
         struct Position
@@ -55,6 +64,7 @@ class Navigate
 
         void setWaypointVelocities(float driveVelocity_mps, float turnVelocity_mps);
 
+        void update(float compassHeading);
         void update();
         void drive(DriveFloatValues& velocities_mps);
 
@@ -68,6 +78,8 @@ class Navigate
             return m_waypointIndex >= m_waypointCount;
         }
 
+        NavigateSystemState applySystemModel(const NavigateSystemState& currState, float period_sec);
+
         void setLogBuffer(void* pLog, size_t logSize);
         bool dumpLog(const char* pFilename);
 
@@ -78,12 +90,13 @@ class Navigate
             float angle;
         };
 
+        void updateInternal(bool useCompassHeading, float compassHeading);
         float roundMagnitudeUpTo1(float velocity);
         PositionDelta calculateMovementAmount(DriveValues& wheelDiffs);
         PositionDelta deltaToNextWaypoint();
         float calculateMetersPerSecondToTicksPerSample(float wheelDiameter_mm);
         float calculateTicksToMM(float wheelDiameter_mm);
-        void updateCurrentPosition();
+        void updateCurrentPosition(bool useCompassHeading, float compassHeading);
 
         enum WaypointState
         {
@@ -118,6 +131,7 @@ class Navigate
         DriveValues         m_prevTicks;
         AnglePID            m_headingPID;
         PID                 m_distancePID;
+        Matrix3x3           m_A;
 };
 
 #endif // NAVIGATE_H_

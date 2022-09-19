@@ -77,7 +77,7 @@ public:
         }
     }
 
-    float magnitude()
+    float magnitude() const
     {
         return sqrtf(x*x + y*y + z*z);
     }
@@ -90,24 +90,34 @@ public:
         z *= magInverse;
     }
 
-    T dotProduct(Vector<T>& v)
+    T dotProduct(const Vector<T>& v) const
     {
         return x * v.x + y * v.y + z * v.z;
     }
 
-    Vector<T> crossProduct(Vector<T>& v)
+    Vector<T> crossProduct(const Vector<T>& v) const
     {
         return Vector<T>(y*v.z - z*v.y,
                          z*v.x - x*v.z,
                          x*v.y - y*v.x);
     }
 
-    Vector<T> multiply(T scalar)
+    Vector<T> multiply(T scalar) const
     {
         return Vector<T>(x * scalar, y * scalar, z * scalar);
     }
 
-    Vector<T> subtract(Vector<T>& v)
+    Vector<T> multiply(const Vector<T> v) const
+    {
+        return Vector<T>(x * v.x, y * v.y, z * v.z);
+    }
+
+    Vector<T> add(const Vector<T>& v) const
+    {
+        return Vector<T>(x + v.x, y + v.y, z + v.z);
+    }
+
+    Vector<T> subtract(const Vector<T>& v) const
     {
         return Vector<T>(x - v.x, y - v.y, z - v.z);
     }
