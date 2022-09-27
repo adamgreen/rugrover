@@ -1,6 +1,9 @@
 # Rug Rover
 ![RugRover Photo of Work In Progress](photos/RugRover.jpg)
 
+## **Project on Hold**
+I am putting this project on hold for a few months while I switch back to my [Robomagellan robot project](https://github.com/adamgreen/Ferdinand20/#readme) in hopes of the SRS Robothon competition being run in 2023. I will take lessons learned this year while working on my RugRover and apply them to my Robomagellan bot, Ferdinand20.
+
 ## Project Overview
 ![My copy of Mobile Robotics](https://raw.githubusercontent.com/adamgreen/Ferdinand20/master/photos/20210914-01.jpg)
 
@@ -169,10 +172,19 @@ Once the mechanical and electronics were far enough along I could start writing 
   * The `FXOS8700CQ` will pull a pin low when the next sample is ready at the specified rate.
   * This falling edge generates an interrupt that causes the next I2C reads of the accelerometers, magnetometers, and gyros to be queued up in the `I2CAsync` queue.
   * The `getRawSensorValues()` method, typically called from the main thread, will block until all of the queued up reads are completed.
-* [OrientationKalmanFilter](software/AdafruitPrecision9DoF/OrientationKalmanFilter.h): Implements a Kalman filter which takes the raw accelerometer, magnetometer, and gyro measurements from the `AdafruitPrecision9DoF` object and generates a 3D orientation quaternion.
+* [OrientationKalmanFilter](software/KalmanFilter/OrientationKalmanFilter.h): Implements a Kalman filter which takes the raw accelerometer, magnetometer, and gyro measurements from the `AdafruitPrecision9DoF` object and generates a 3D orientation quaternion.
   * It also contains a method which can extract the compass heading from this 3D orientation as well.
-  * The code for this filter was based on what I learned from reading ["Kalman Filter for Beginners with MATLAB Examples" by Phil Kim](https://www.amazon.com/Kalman-Filter-Beginners-MATLAB-Examples/dp/1463648359).
+  * The code for this filter was based on what I learned from reading ["Kalman Filter for Beginners with MATLAB Examples" by Phil Kim](https://www.amazon.com/Kalman-Filter-Beginners-MATLAB-Examples/dp/1463648359). The system model used in this filter came from Chapter 13 of this book.
   * I documented many of the required calibration steps [earlier while working on my Ferdinand14 project](https://github.com/adamgreen/Ferdinand14#august-19-2014).
   * The [processing/calibration folder](processing/calibration/) contains a port of the calibration program which will work with this robot. The robot does need to be running the "Test IMU Raw" option from the debug menu to send the required measurements to this calibration program.
-  * The [processing/orientation folder](processing/orientation/) contains a program that visualizes the 3D orientation of the robot in real time. The robot needs to be running the "TTest IMU Orientation" option from the debug menu in order to send the required quaternion data over BLE to this program.
+  * The [processing/orientation folder](processing/orientation/) contains a program that visualizes the 3D orientation of the robot in real time. The robot needs to be running the "Test IMU Orientation" option from the debug menu in order to send the required quaternion data over BLE to this program.
   * Both of the processing programs above use a TCP/IP socket to connect to the `mriblue` program on port 3334. This gives it access to extra data sent from the robot over BLE that isn't meant for GDB.
+* [HeadingKalmanFilter](software/KalmanFilter/HeadingKalmanFilter.h): Implements a Kalman filter which fuses Z axis gyro angular rate measurements with angle heading change measurements calculated from wheel odometry.
+  * The code for this filter was also based on what I learned from reading ["Kalman Filter for Beginners with MATLAB Examples" by Phil Kim](https://www.amazon.com/Kalman-Filter-Beginners-MATLAB-Examples/dp/1463648359).
+  * The system model used by this filter was one I created on my own. It tracks:
+    * The current heading angle in radians.
+    * The current gyro angular turn rate in radians/sec.
+    * The estimate of the gyro drift in radians/sec. Having an estimate of this value allows for the filter to obtain a more accurate turn rate from the gyro than possible otherwise.
+  * I determined the first two variance values to place in the Q matrix by setting the `DEBUG_CALCULATE_STATS_FOR_SYSTEM_MODEL` macro to true in [main.cpp](software/main.cpp) so that it would dump stats about how much this model tended to deviate from the real world while just using wheel odometry. I then set the variance for the drift parameter to 0.0 since the model maintains it as a constant and in the real world it should vary slowly over time.
+  * The `GYRO_ERROR` was calculated and dumped by the orientation.pde utility while I was calibrating the IMU for the OrientationKalmanFilter.
+  * I estimate that the `ODOMETRY_ERROR` error is typically the result of a +/- 1 encoder tick's influence on the wheel odometry calculation of the heading angle delta.
