@@ -29,7 +29,11 @@ SRC_FILES += \
   $(PROJ_DIR)/AdafruitPrecision9DoF/FXAS21002C.cpp \
   $(PROJ_DIR)/AdafruitPrecision9DoF/FXOS8700CQ.cpp \
   $(PROJ_DIR)/AdafruitPrecision9DoF/AdafruitPrecision9DoF.cpp \
-  $(PROJ_DIR)/AdafruitPrecision9DoF/OrientationKalmanFilter.cpp \
+  $(PROJ_DIR)/KalmanFilter/OrientationKalmanFilter.cpp \
+  $(PROJ_DIR)/KalmanFilter/HeadingKalmanFilter.cpp \
+  $(PROJ_DIR)/LinearAlgebra/Matrix3x3.cpp \
+  $(PROJ_DIR)/LinearAlgebra/Matrix2x3.cpp \
+  $(PROJ_DIR)/LinearAlgebra/Matrix3x2.cpp \
   $(PROJ_DIR)/I2CAsync/I2CAsync.cpp \
   $(SDK_ROOT)/components/libraries/log/src/nrf_log_backend_serial.c \
   $(SDK_ROOT)/components/libraries/log/src/nrf_log_frontend.c \

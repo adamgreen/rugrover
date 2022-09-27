@@ -13,9 +13,13 @@
 #ifndef MATRIX_3x3_H_
 #define MATRIX_3x3_H_
 
+#include <nrf52.h>
 #include <arm_math.h>
 #include <string.h>
-#include <LinearAlgebra/Vector3.h>
+#include "Vector3.h"
+
+class Matrix2x3;
+class Matrix3x2;
 
 class Matrix3x3
 {
@@ -95,6 +99,8 @@ public:
 
         return prod;
     }
+
+    Matrix3x2 multiplyTransposed(const Matrix2x3& m) const;
 
     Matrix3x3 inverse() const
     {

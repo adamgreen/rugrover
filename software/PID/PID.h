@@ -183,6 +183,9 @@ protected:
 
 static inline float constrainAngle(float angle)
 {
+    // This code doesn't handle angles outside of the -360 to 360 degree range.
+    ASSERT ( angle >=-2.0f*(float)M_PI && angle <= 2.0f*(float)M_PI );
+
     if (angle < -(float)M_PI)
         return angle + 2.0f*(float)M_PI;
     else if (angle > (float)M_PI)

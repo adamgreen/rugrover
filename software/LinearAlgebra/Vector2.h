@@ -10,34 +10,33 @@
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 */
-#ifndef VECTOR3_H_
-#define VECTOR3_H_
+#ifndef VECTOR2_H_
+#define VECTOR2_H_
 
 #include <assert.h>
 #include <stdint.h>
 
 
 template <class T>
-class Vector3
+class Vector2
 {
 public:
-    Vector3(T x, T y, T z)
+    Vector2(T x, T y)
     {
         this->x = x;
         this->y = y;
-        this->z = z;
     }
 
-    Vector3()
+    Vector2()
     {
         clear();
     }
 
-    static Vector3<T> createFromSwizzledSource(Vector3<int16_t>& swizzle, Vector3<T>& v)
+    static Vector2<T> createFromSwizzledSource(Vector2<int16_t>& swizzle, Vector2<T>& v)
     {
-        Vector3<T> newVector;
+        Vector2<T> newVector;
 
-        for (int i = 0 ; i < 3 ; i++)
+        for (int i = 0 ; i < 2 ; i++)
         {
             int16_t swizzleFrom = swizzle[i];
             bool    inverse = false;
@@ -58,7 +57,6 @@ public:
     {
         x = 0;
         y = 0;
-        z = 0;
     }
 
     T& operator [](int i)
@@ -69,17 +67,15 @@ public:
             return x;
         case 1:
             return y;
-        case 2:
-            return z;
         default:
-            assert(i >= 0 && i <= 2);
-            return z;
+            assert(i >= 0 && i <= 1);
+            return y;
         }
     }
 
     float magnitude() const
     {
-        return sqrtf(x*x + y*y + z*z);
+        return sqrtf(x*x + y*y);
     }
 
     void normalize()
@@ -87,44 +83,35 @@ public:
         float magInverse = 1.0f / magnitude();
         x *= magInverse;
         y *= magInverse;
-        z *= magInverse;
     }
 
-    T dotProduct(const Vector3<T>& v) const
+    T dotProduct(const Vector2<T>& v) const
     {
-        return x * v.x + y * v.y + z * v.z;
+        return x * v.x + y * v.y;
     }
 
-    Vector3<T> crossProduct(const Vector3<T>& v) const
+    Vector2<T> multiply(T scalar) const
     {
-        return Vector3<T>(y*v.z - z*v.y,
-                         z*v.x - x*v.z,
-                         x*v.y - y*v.x);
+        return Vector2<T>(x * scalar, y * scalar);
     }
 
-    Vector3<T> multiply(T scalar) const
+    Vector2<T> multiply(const Vector2<T> v) const
     {
-        return Vector3<T>(x * scalar, y * scalar, z * scalar);
+        return Vector2<T>(x * v.x, y * v.y);
     }
 
-    Vector3<T> multiply(const Vector3<T> v) const
+    Vector2<T> add(const Vector2<T>& v) const
     {
-        return Vector3<T>(x * v.x, y * v.y, z * v.z);
+        return Vector2<T>(x + v.x, y + v.y);
     }
 
-    Vector3<T> add(const Vector3<T>& v) const
+    Vector2<T> subtract(const Vector2<T>& v) const
     {
-        return Vector3<T>(x + v.x, y + v.y, z + v.z);
-    }
-
-    Vector3<T> subtract(const Vector3<T>& v) const
-    {
-        return Vector3<T>(x - v.x, y - v.y, z - v.z);
+        return Vector2<T>(x - v.x, y - v.y);
     }
 
     T x;
     T y;
-    T z;
 };
 
-#endif /* VECTOR3_H_ */
+#endif /* VECTOR2_H_ */

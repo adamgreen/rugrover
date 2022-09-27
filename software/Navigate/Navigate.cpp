@@ -29,12 +29,11 @@ Navigate::Navigate(DifferentialDrive* pDrive, float ticksPerRotation,
                   float leftWheelDiameter_mm, float rightWheelDiameter_mm, float wheelbase_mm,
                   float distanceThreshold_mm, float angleThreshold_radians, float headingRatio, uint32_t brakeSamples,
                   float headingPidKc, float headingPidTi, float headingPidTd,
-                  float distancePidKc, float distancePidTi, float distancePidTd)
+                  float distancePidKc, float distancePidTi, float distancePidTd,
+                  const HeadingCalibration* pKalmanCalibration)
 : m_headingPID(headingPidKc, headingPidTi, headingPidTd, 0.0f, -0.5f, 0.5f, 1.0f/pDrive->getPidFrequency()),
   m_distancePID(distancePidKc, distancePidTi, distancePidTd, 0.0f, -0.5f, 0.5f, 1.0f/pDrive->getPidFrequency()),
-  m_A(1.0f, 1.0f/100.0f, -1.0/100.0f,
-      0.0f, 1.0f,        0.0f,
-      0.0f, 0.0f,        1.0f)
+  m_kalmanFilter(pKalmanCalibration )
 {
     ASSERT ( pDrive != NULL );
 
@@ -75,32 +74,21 @@ void Navigate::reset()
     m_waypointState = ROTATE_TO_NEXT;
     m_distancePID.reset();
     m_headingPID.reset();
+    m_kalmanFilter.reset();
     if (m_pLog != NULL)
     {
         setLogBuffer(m_pLog, m_logSize);
     }
 }
 
-void Navigate::update(float compassHeading)
-{
-    bool useCompassHeading = true;
-    updateInternal(useCompassHeading, compassHeading);
-}
-
-void Navigate::update()
-{
-    bool useCompassHeading = false;
-    updateInternal(useCompassHeading, 0.0f);
-}
-
-void Navigate::updateInternal(bool useCompassHeading, float compassHeading)
+void Navigate::update(HeadingSource source, float compassOrGyro, float samplePeriod_sec)
 {
     if (!m_pDrive->isEnabled())
     {
         return;
     }
 
-    updateCurrentPosition(useCompassHeading, compassHeading);
+    updateCurrentPosition(source, compassOrGyro, samplePeriod_sec);
 
     DriveFloatValues velocities =
     {
@@ -240,7 +228,7 @@ void Navigate::drive(DriveFloatValues& velocities_mps)
         return;
     }
 
-    updateCurrentPosition(false, 0.0f);
+    updateCurrentPosition(ODOMETRY_ONLY, 0.0f, 1.0f/100.0f);
     DriveFloatValues velocities =
     {
         .left = velocities_mps.left * m_speedConversions.left,
@@ -249,19 +237,26 @@ void Navigate::drive(DriveFloatValues& velocities_mps)
     m_pDrive->setVelocity(velocities);
 }
 
-void Navigate::updateCurrentPosition(bool useCompassHeading, float compassHeading)
+void Navigate::updateCurrentPosition(HeadingSource source, float compassOrGyro, float samplePeriod_sec)
 {
     DifferentialDrive::DriveStats stats = m_pDrive->getStats();
     m_encoderDeltas.left = stats.encoderCount.left - m_prevTicks.left;
     m_encoderDeltas.right = stats.encoderCount.right - m_prevTicks.right;
     PositionDelta delta = calculateMovementAmount(m_encoderDeltas);
-    if (useCompassHeading)
+    switch (source)
     {
-        m_currentPosition.heading = compassHeading;
-    }
-    else
-    {
-        m_currentPosition.heading = constrainAngle(m_currentPosition.heading + delta.angle);
+        case ODOMETRY_ONLY:
+            m_currentPosition.heading = constrainAngle(m_currentPosition.heading + delta.angle);
+            break;
+        case COMPASS_ONLY:
+            m_currentPosition.heading = compassOrGyro;
+            break;
+        case ODOMETRY_GYRO_FUSION:
+        {
+            HeadingModelState modelState = m_kalmanFilter.update(delta.angle, compassOrGyro, samplePeriod_sec);
+            m_currentPosition.heading = modelState.m_heading;
+            break;
+        }
     }
     m_currentPosition.x += delta.distance * sinf(m_currentPosition.heading);
     m_currentPosition.y += delta.distance * cosf(m_currentPosition.heading);
@@ -345,20 +340,6 @@ float Navigate::calculateTicksToMM(float wheelDiameter_mm)
     // ticks * circumference_mm/rev * 1rev/ticks
     return ((float)M_PI * wheelDiameter_mm) / m_ticksPerRotation;
 }
-
-
-NavigateSystemState Navigate::applySystemModel(const NavigateSystemState& currState, float period_sec)
-{
-    // Update the time based components of the A matrix with the latest interval.
-    m_A.m_01 = period_sec;
-    m_A.m_02 = -period_sec;
-
-    NavigateSystemState newState = m_A.multiply(currState);
-    newState.m_heading = constrainAngle(newState.m_heading);
-
-    return newState;
-}
-
 
 
 void Navigate::setLogBuffer(void* pLog, size_t logSize)

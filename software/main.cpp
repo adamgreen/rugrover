@@ -52,7 +52,7 @@
 #include <DifferentialDrive/DifferentialDrive.h>
 #include <Navigate/Navigate.h>
 #include <AdafruitPrecision9DoF/AdafruitPrecision9DoF.h>
-#include <AdafruitPrecision9DoF/OrientationKalmanFilter.h>
+#include <KalmanFilter/OrientationKalmanFilter.h>
 #include <I2CAsync/I2CAsync.h>
 
 
@@ -217,14 +217,15 @@
 // Enumeration of routines which can be run from the main loop.
 enum DebugRoutines
 {
-    DEBUG_NAVIGATE = 1,
-    DEBUG_NAVIGATE_WITH_IMU = 2,
-    DEBUG_PID = 3,
-    DEBUG_PID_SPEED_CALIBRATE = 4,
-    DEBUG_PID_HEADING_CALIBRATE = 5,
-    DEBUG_PID_DISTANCE_CALIBRATE = 6,
-    DEBUG_IMU_RAW = 7,
-    DEBUG_IMU_ORIENTATION = 8,
+    DEBUG_NAVIGATE_WITH_ODOMETRY = 1,
+    DEBUG_NAVIGATE_WITH_COMPASS = 2,
+    DEBUG_NAVIGATE_WITH_ODOMETRY_GYRO_FUSION = 3,
+    DEBUG_PID = 4,
+    DEBUG_PID_SPEED_CALIBRATE = 5,
+    DEBUG_PID_HEADING_CALIBRATE = 6,
+    DEBUG_PID_DISTANCE_CALIBRATE = 7,
+    DEBUG_IMU_RAW = 8,
+    DEBUG_IMU_ORIENTATION = 9,
     DEBUG_MAX
 };
 
@@ -297,6 +298,34 @@ static SensorCalibration g_imuCalibration =
     .gyroSwizzle = { 1, -3, 2 }
 };
 
+// The likely odometry angle delta error is due to 1 encoder tick's impact on the robot's heading.
+// Specified in radians.
+#define ODOMETRY_ERROR      ((1.0f/MOTOR_TICKS_PER_REV)*(float)M_PI*LEFT_WHEEL_DIAMETER/WHEELBASE)
+
+// Gyro error is specified in gyro's data sheet. Specified in radians/second.
+// The data sheet indicates that it should be ~2x this but this is what I saw during the calibration run.
+#define GYRO_ERROR          (18.158f/128.0f)
+
+#define ODOMETRY_VARIANCE   (ODOMETRY_ERROR*ODOMETRY_ERROR)
+#define GYRO_VARIANCE       (GYRO_ERROR*GYRO_ERROR)
+
+// Calibration values for the heading kalman filter which combines wheel odometry measurement of heading angle change
+// with yaw gyro rate measurements.
+HeadingCalibration g_headingCalibration =
+{
+    // There are 128 least significant bits per degree according to gyro's data sheet.
+    .gyroScale = 128.0f,
+    // The robot isn't moving when navigation starts at angle 0.0 so the first 2 parameters are known 100%. The
+    // gyro drift will be estimated as the current gyro rate when no movement is being made. This should be within
+    // the gyro's noise spec.
+    .initialModelVariances = {0.0f, 0.0f, GYRO_VARIANCE},
+    // Found by running model with odometry alone in testNavigateRoutine() and keeping stats on how much each actual
+    // sample differs from the estimate.
+    .modelVariances = {0.000003f, 0.025384, 0.0f},
+    // The odometry error is calculated above and the gyro error comes from data sheet.
+    .sensorVariances = {ODOMETRY_VARIANCE, GYRO_VARIANCE}
+};
+
 // SPIM instance used for driving the OLED.
 static const nrf_drv_spi_t  g_spiOLED = NRF_DRV_SPI_INSTANCE(OLED_SPI_INSTANCE);
 
@@ -338,7 +367,8 @@ static Navigate             g_navigate(&g_drive, MOTOR_TICKS_PER_REV,
                                        LEFT_WHEEL_DIAMETER, RIGHT_WHEEL_DIAMETER, WHEELBASE,
                                        THRESHOLD_DISTANCE, THRESHOLD_ANGLE, HEADING_VS_FORWARD_SPEED, BRAKE_ZERO_SAMPLE,
                                        HEADING_PID_Kc, HEADING_PID_Ti, HEADING_PID_Td,
-                                       DISTANCE_PID_Kc, DISTANCE_PID_Ti, DISTANCE_PID_Td);
+                                       DISTANCE_PID_Kc, DISTANCE_PID_Ti, DISTANCE_PID_Td,
+                                       &g_headingCalibration);
 
 // Output written to this file will be sent wirelessly to an application running on the Mac.
 static FILE*                g_pDataFile = NULL;
@@ -347,7 +377,7 @@ static FILE*                g_pDataFile = NULL;
 static int                  g_dbg = 0;
 
 // Which debug routine should be executed.
-static DebugRoutines        g_dbgRoutine = DEBUG_NAVIGATE;
+static DebugRoutines        g_dbgRoutine = DEBUG_NAVIGATE_WITH_ODOMETRY_GYRO_FUSION;
 
 
 
@@ -358,9 +388,9 @@ static void initI2C();
 static void configureI2CPinsToDisablePullUpAndUseHigherCurrentSinkTo0V();
 static void initGPIOTE_AtHighestAppPriority();
 static uint32_t displayDebugMenuAndGetOption(const char* pOptionsString, uint32_t maxOption);
-static void testNavigateRoutine(bool useCompassHeading);
+static void testNavigateRoutine(Navigate::HeadingSource headingSource);
 static float getFloatOption(const char* pDescription, float defaultVal);
-static bool testDriveWaypoints(bool useCompassHeading, float compassHeading);
+static bool testDriveWaypoints(Navigate::HeadingSource headingSource, float compassHeading, float rawGyro, float samplePeriod_sec);
 static bool testTurnInPlace(float speed_mps, float angleThreshold, uint32_t iteration);
 static void testPidRoutine();
 static void sleep_us(uint32_t* pPrevTime, uint32_t delay);
@@ -411,11 +441,14 @@ int main(void)
         g_dbg = 0;
         switch (g_dbgRoutine)
         {
-            case DEBUG_NAVIGATE:
-                testNavigateRoutine(false);
+            case DEBUG_NAVIGATE_WITH_ODOMETRY:
+                testNavigateRoutine(Navigate::ODOMETRY_ONLY);
                 break;
-            case DEBUG_NAVIGATE_WITH_IMU:
-                testNavigateRoutine(true);
+            case DEBUG_NAVIGATE_WITH_COMPASS:
+                testNavigateRoutine(Navigate::COMPASS_ONLY);
+                break;
+            case DEBUG_NAVIGATE_WITH_ODOMETRY_GYRO_FUSION:
+                testNavigateRoutine(Navigate::ODOMETRY_GYRO_FUSION);
                 break;
             case DEBUG_PID:
                 testPidRoutine();
@@ -440,14 +473,15 @@ int main(void)
         }
 
         g_dbgRoutine = (DebugRoutines)displayDebugMenuAndGetOption(
-                                        "1. Test Navigate\n"
+                                        "1. Test Navigate with Odometry\n"
                                         "2. Test Navigate with Compass\n"
-                                        "3. Test PID\n"
-                                        "4. Run Speed PID calibration\n"
-                                        "5. Run Heading PID calibration\n"
-                                        "6. Run Distance PID calibration\n"
-                                        "7. Test IMU Raw\n"
-                                        "8. Test IMU Orientation\n", DEBUG_MAX);
+                                        "3. Test Navigate with Odometry/Gyro Fusion\n"
+                                        "4. Test PID\n"
+                                        "5. Run Speed PID calibration\n"
+                                        "6. Run Heading PID calibration\n"
+                                        "7. Run Distance PID calibration\n"
+                                        "8. Test IMU Raw\n"
+                                        "9. Test IMU Orientation\n", DEBUG_MAX);
     }
 }
 
@@ -531,13 +565,17 @@ static uint32_t displayDebugMenuAndGetOption(const char* pOptionsString, uint32_
     }
 }
 
-static void testNavigateRoutine(bool useCompassHeading)
+static void testNavigateRoutine(Navigate::HeadingSource headingSource)
 {
     DriveValues zeroPower{0, 0};
+    const float driveSpeed_mps = 0.25f;
+    const float turnSpeed_mps = 0.25f;
+    const float angleThreshold = 15.0f * DEGREE_TO_RADIAN;
     float leftWheelDiameter = LEFT_WHEEL_DIAMETER;
     float rightWheelDiameter = RIGHT_WHEEL_DIAMETER;
     float wheelRatio = rightWheelDiameter / leftWheelDiameter;
     float wheelbase = WHEELBASE;
+    HeadingKalmanFilter headingFilter(&g_headingCalibration);
 
     uint32_t logBuffer[2048/sizeof(uint32_t)];
     g_navigate.setLogBuffer(logBuffer, sizeof(logBuffer));
@@ -578,9 +616,6 @@ static void testNavigateRoutine(bool useCompassHeading)
         } while (testMode == NEITHER);
 
         // Enter main action loop.
-        const float    driveSpeed_mps = 0.25f;
-        const float    turnSpeed_mps = 0.25f;
-        const float    angleThreshold = 15.0f * DEGREE_TO_RADIAN;
         uint32_t count = 0;
 
         // Setup the fixed heading text on the OLED.
@@ -631,7 +666,7 @@ static void testNavigateRoutine(bool useCompassHeading)
         g_drive.enable();
 
         float initialHeading = 0.0f;
-        NavigateSystemState prevSystemState;
+        HeadingModelState prevSystemState;
         Vector3<double> sum;
         Vector3<double> sumSquared;
         uint32_t iteration = 0;
@@ -639,9 +674,10 @@ static void testNavigateRoutine(bool useCompassHeading)
         while (true)
         {
             uint32_t   imuIterations = 1;
+            SensorValues sensorValues;
             Quaternion orientation;
             float      headingAngle;
-            float      sampleTime_us;
+            float      sampleTime_sec;
 
             // Give the Kalman filter some time to stabilize on the first iteration.
             if (iteration == 0)
@@ -657,7 +693,7 @@ static void testNavigateRoutine(bool useCompassHeading)
                 }
 
                 // Blocking read of the next sensor reading. This sets the 100Hz update rate.
-                SensorValues sensorValues = g_imu.getRawSensorValues();
+                sensorValues = g_imu.getRawSensorValues();
                 if (g_imu.didIoFail())
                 {
                     hangOnError("Encountered I2C I/O error during fetch of IMU sensor readings.\n");
@@ -667,7 +703,7 @@ static void testNavigateRoutine(bool useCompassHeading)
                 SensorCalibratedValues calibratedValues = g_orientation.calibrateSensorValues(&sensorValues);
                 orientation = g_orientation.getOrientation(&calibratedValues, sensorValues.samplePeriod_us);
                 headingAngle = g_orientation.getHeading(&orientation);
-                sampleTime_us = sensorValues.samplePeriod_us;
+                sampleTime_sec = sensorValues.samplePeriod_us / 1000000.0f;
 
                 if (i > 0)
                 {
@@ -685,8 +721,11 @@ static void testNavigateRoutine(bool useCompassHeading)
             if (iteration == 0)
             {
                 initialHeading = headingAngle;
+                prevDumpTime = micros();
             }
             float compassDelta = constrainAngle(headingAngle - initialHeading);
+            // It's negative because the Z gyro direction is opposite of what I used for odometry.
+            float rawGyro = -sensorValues.gyro.z;
 
             bool testDone = false;
             switch (testMode)
@@ -694,7 +733,7 @@ static void testNavigateRoutine(bool useCompassHeading)
                 case STRAIGHT:
                 case CLOCKWISE:
                 case COUNTERCLOCKWISE:
-                    testDone = testDriveWaypoints(useCompassHeading, compassDelta);
+                    testDone = testDriveWaypoints(headingSource, compassDelta, rawGyro, sampleTime_sec);
                     break;
                 case TURN:
                     testDone = testTurnInPlace(turnSpeed_mps, angleThreshold, iteration);
@@ -719,11 +758,10 @@ static void testNavigateRoutine(bool useCompassHeading)
             // Calculate statistics about how much system model differs from the real world.
             if (DEBUG_CALCULATE_STATS_FOR_SYSTEM_MODEL)
             {
-                float sampleTime_sec = sampleTime_us / 1000000.0f;
-                NavigateSystemState estimatedSystemState = g_navigate.applySystemModel(prevSystemState, sampleTime_sec);
+                HeadingModelState estimatedSystemState = headingFilter.applySystemModel(prevSystemState, sampleTime_sec);
                 float turnRate = constrainAngle(position.heading - prevSystemState.m_heading) / sampleTime_sec;
-                NavigateSystemState actualSystemState(position.heading, turnRate, 0.0f);
-                NavigateSystemState diffSystemState = estimatedSystemState.subtract(actualSystemState);
+                HeadingModelState actualSystemState(position.heading, turnRate, 0.0f);
+                HeadingModelState diffSystemState = estimatedSystemState.subtract(actualSystemState);
                 diffSystemState.m_heading = constrainAngle(diffSystemState.m_heading);
                 Vector3<double> diffDouble(diffSystemState.x, diffSystemState.y, diffSystemState.z);
                 sum = sum.add(diffDouble);
@@ -794,16 +832,22 @@ static float getFloatOption(const char* pDescription, float defaultVal)
     return strtof(input, NULL);
 }
 
-static bool testDriveWaypoints(bool useCompassHeading, float compassHeading)
+static bool testDriveWaypoints(Navigate::HeadingSource headingSource, float compassHeading, float rawGyro, float samplePeriod_sec)
 {
-    if (useCompassHeading)
+    float compassOrGyro = 0.0f;
+    switch (headingSource)
     {
-        g_navigate.update(compassHeading);
+        case Navigate::COMPASS_ONLY:
+            compassOrGyro = compassHeading;
+            break;
+        case Navigate::ODOMETRY_GYRO_FUSION:
+            compassOrGyro = rawGyro;
+            break;
+        default:
+            compassOrGyro = 0.0f;
+            break;
     }
-    else
-    {
-        g_navigate.update();
-    }
+    g_navigate.update(headingSource, compassOrGyro, samplePeriod_sec);
 
     return g_navigate.hasReachedFinalWaypoint();
 }

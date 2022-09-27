@@ -17,21 +17,12 @@
 #include <stdint.h>
 #include <math.h>
 #include <DifferentialDrive/DifferentialDrive.h>
-#include <LinearAlgebra/Vector3.h>
-#include <LinearAlgebra/Matrix3x3.h>
+#include <KalmanFilter/HeadingKalmanFilter.h>
 
 
 // Macros to convert between radians and degrees.
 #define RADIAN_TO_DEGREE (180.0f/(float)M_PI)
 #define DEGREE_TO_RADIAN ((float)M_PI/180.0f)
-
-// Give more descriptive names of system state variables to x, y, z components of Vector3 class.
-// They are in radians for heading and radians/second for the others.
-#define m_heading               x
-#define m_angleRateWithError    y
-#define m_angleRateError        z
-
-typedef Vector3<float> NavigateSystemState;
 
 class Navigate
 {
@@ -40,7 +31,8 @@ class Navigate
                  float leftWheelDiameter_mm, float rightWheelDiameter_mm, float wheelbase_mm,
                  float distanceThreshold_mm, float angleThreshold_radians, float headingRatio, uint32_t brakeSamples,
                  float headingPidKc, float headingPidTi, float headingPidTd,
-                 float distancePidKc, float distancePidTi, float distancePidTd);
+                 float distancePidKc, float distancePidTi, float distancePidTd,
+                 const HeadingCalibration* pKalmanCalibration);
 
         void setWheelDimensions(float leftWheelDiameter_mm, float rightWheelDiameter_mm, float wheelbase_mm);
         void reset();
@@ -64,8 +56,15 @@ class Navigate
 
         void setWaypointVelocities(float driveVelocity_mps, float turnVelocity_mps);
 
-        void update(float compassHeading);
-        void update();
+        enum HeadingSource
+        {
+            ODOMETRY_ONLY,
+            COMPASS_ONLY,
+            ODOMETRY_GYRO_FUSION
+        };
+
+        void update(HeadingSource source, float compassOrGyro, float samplePeriod_sec);
+
         void drive(DriveFloatValues& velocities_mps);
 
         Position getCurrentPosition()
@@ -78,7 +77,11 @@ class Navigate
             return m_waypointIndex >= m_waypointCount;
         }
 
-        NavigateSystemState applySystemModel(const NavigateSystemState& currState, float period_sec);
+        // When using ODOMETRY_GYRO_FUSION, these methods can be used for debug purposes to peek inside the Kalman
+        // filter a bit more.
+        float getGyroRate() { return m_kalmanFilter.getGyroRate(); }
+        float getGyroDrift() { return m_kalmanFilter.getGyroDrift(); }
+        Matrix3x3 getErrorMatrix() { return m_kalmanFilter.getErrorMatrix(); }
 
         void setLogBuffer(void* pLog, size_t logSize);
         bool dumpLog(const char* pFilename);
@@ -90,13 +93,12 @@ class Navigate
             float angle;
         };
 
-        void updateInternal(bool useCompassHeading, float compassHeading);
+        void updateCurrentPosition(HeadingSource source, float compassOrGyro, float samplePeriod_sec);
         float roundMagnitudeUpTo1(float velocity);
         PositionDelta calculateMovementAmount(DriveValues& wheelDiffs);
         PositionDelta deltaToNextWaypoint();
         float calculateMetersPerSecondToTicksPerSample(float wheelDiameter_mm);
         float calculateTicksToMM(float wheelDiameter_mm);
-        void updateCurrentPosition(bool useCompassHeading, float compassHeading);
 
         enum WaypointState
         {
@@ -131,7 +133,7 @@ class Navigate
         DriveValues         m_prevTicks;
         AnglePID            m_headingPID;
         PID                 m_distancePID;
-        Matrix3x3           m_A;
+        HeadingKalmanFilter m_kalmanFilter;
 };
 
 #endif // NAVIGATE_H_

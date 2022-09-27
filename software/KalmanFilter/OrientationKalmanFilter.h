@@ -24,7 +24,7 @@
 #include <LinearAlgebra/Quaternion.h>
 #include <LinearAlgebra/Vector3.h>
 #include <LinearAlgebra/Matrix4x4.h>
-#include "AdafruitPrecision9DoF.h"
+#include <AdafruitPrecision9DoF/AdafruitPrecision9DoF.h>
 
 struct SensorCalibratedValues
 {
