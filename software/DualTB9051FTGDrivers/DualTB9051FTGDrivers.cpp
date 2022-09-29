@@ -23,7 +23,7 @@
 //      I = OCMV / 220ohm * 1/0.00223
 #define V_TO_mA(X) ((X)*2038)
 // Input analog range of (0-4095) to mA
-#define ADC_TO_mA(X) ((X)*67254/40950)
+#define ADC_TO_mA(X) (((int32_t)X)*67254/40950)
 // Input motor current in mA to ADC range of (0-4095)
 #define mA_TO_ADC(X) ((X)*40950/67254)
 
@@ -164,6 +164,7 @@ DualTB9051FTGDrivers::MotorDriver::MotorDriver(DualTB9051FTGDrivers* pMotors, ui
     m_diagPin = diagPin;
     m_ocmPin = ocmPin;
     m_maxCurrent_mA = maxCurrent_mA;
+    m_lastCurrent_mA = 0;
     m_diagAsserted = false;
     m_currentOverloadDetected = false;
 }
@@ -271,9 +272,15 @@ int32_t DualTB9051FTGDrivers::MotorDriver::getCurrentReading()
     {
         return 0;
     }
+
     SAADCScanner::Channel::Reading reading = m_pAdcChannel->read();
-    ASSERT ( reading.count > 0 );
-    return ADC_TO_mA((int32_t)reading.max);
+    int16_t currentReading = m_lastCurrent_mA;
+    if (reading.count > 0)
+    {
+        currentReading = reading.max;
+    }
+    m_lastCurrent_mA = currentReading;
+    return ADC_TO_mA(currentReading);
 }
 
 DriveLimits DualTB9051FTGDrivers::MotorDriver::getPowerLimits()

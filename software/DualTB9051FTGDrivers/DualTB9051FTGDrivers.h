@@ -191,6 +191,7 @@ class DualTB9051FTGDrivers
                 DutyCycleSequences      m_dutyCycleSequences;
                 volatile uint16_t       m_currDutyCycle;
                 uint16_t                m_counterTop;
+                int16_t                 m_lastCurrent_mA;
                 volatile bool           m_updatedDutyCycle;
                 bool                    m_enabled;
                 bool                    m_reverse;

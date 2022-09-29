@@ -346,7 +346,7 @@ static AdafruitPrecision9DoF g_imu(&g_i2cAsync, IMU_INT_PIN, IMU_SAMPLE_RATE);
 static OrientationKalmanFilter g_orientation(IMU_SAMPLE_RATE, &g_imuCalibration);
 
 // Analog to digital converter object.
-static SAADCScanner         g_adc(NRF_SAADC_RESOLUTION_12BIT, _PRIO_APP_LOWEST);
+static SAADCScanner         g_adc(NRF_SAADC_RESOLUTION_12BIT, false, _PRIO_APP_LOWEST);
 
 // PWM peripheral instance used for the motor drivers.
 static nrf_drv_pwm_t        g_PWM = NRF_DRV_PWM_INSTANCE(0);
@@ -687,6 +687,9 @@ static void testNavigateRoutine(Navigate::HeadingSource headingSource)
 
             for (uint32_t i = 0 ; i < imuIterations ; i++)
             {
+                // Kick off the next ADC sampling cycle so that the sample is ready by the time it is needed later in this loop.
+                g_adc.startScanning();
+
                 if (g_dbg)
                 {
                     return;
@@ -914,6 +917,9 @@ static void testPidRoutine()
     uint32_t prevDumpTime = prevTime;
     while (true)
     {
+        // Kick off the next ADC sampling cycle so that the sample is ready by the time it is needed later in this loop.
+        g_adc.startScanning();
+
         // Delay specified amount of time between iterations of the loop.
         sleep_us(&prevTime, delay_us);
         if (g_dbg)
@@ -1042,6 +1048,9 @@ static void testPidSpeedCalibrateRoutine()
     prevTime = micros();
     for (size_t i = 0 ; i < ARRAY_SIZE(samples) ; i++)
     {
+        // Kick off the next ADC sampling cycle so that the sample is ready by the time it is needed later in this loop.
+        g_adc.startScanning();
+
         sleep_us(&prevTime, delay_us);
         if (g_dbg)
         {
@@ -1214,6 +1223,9 @@ static void testPidHeadingCalibrateRoutine()
     prevTime = micros();
     for (size_t i = 0 ; i < ARRAY_SIZE(samples) ; i++)
     {
+        // Kick off the next ADC sampling cycle so that the sample is ready by the time it is needed later in this loop.
+        g_adc.startScanning();
+
         sleep_us(&prevTime, delay_us);
         if (g_dbg)
         {
@@ -1443,6 +1455,9 @@ static void testPidDistanceCalibrateRoutine()
     prevTime = micros();
     for (size_t i = 0 ; i < ARRAY_SIZE(samples) ; i++)
     {
+        // Kick off the next ADC sampling cycle so that the sample is ready by the time it is needed later in this loop.
+        g_adc.startScanning();
+
         sleep_us(&prevTime, delay_us);
         if (g_dbg)
         {
@@ -1653,6 +1668,9 @@ static void debugImuRoutine(DebugImuType type)
     uint32_t prevDumpTime = micros();
     while (true)
     {
+        // Kick off the next ADC sampling cycle so that the sample is ready by the time it is needed later in this loop.
+        g_adc.startScanning();
+
         if (g_dbg)
         {
             return;

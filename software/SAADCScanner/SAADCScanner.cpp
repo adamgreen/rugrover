@@ -19,6 +19,7 @@ SAADCScanner* g_pThis = NULL;
 
 
 SAADCScanner::SAADCScanner(nrf_saadc_resolution_t resolution /* = NRF_SAADC_RESOLUTION_12BIT */,
+                           bool sampleContinuously /* = true */,
                            uint8_t irqPriority /* = _PRIO_APP_LOWEST*/)
 {
     // Can only instantiate one SAADCScanner object.
@@ -27,6 +28,7 @@ SAADCScanner::SAADCScanner(nrf_saadc_resolution_t resolution /* = NRF_SAADC_RESO
     m_usedChannelCount = 0;
     memset(m_buffer, 0, sizeof(m_buffer));
     m_resolution = resolution;
+    m_sampleContinuously = sampleContinuously;
     m_irqPriority = irqPriority;
     g_pThis = this;
 
@@ -85,11 +87,11 @@ SAADCScanner::Channel* SAADCScanner::findFreeChannel()
 
 void SAADCScanner::startScanning()
 {
-        nrf_saadc_buffer_init(m_buffer, m_usedChannelCount);
-        nrf_saadc_event_clear(NRF_SAADC_EVENT_STARTED);
-        nrf_saadc_task_trigger(NRF_SAADC_TASK_START);
+    nrf_saadc_buffer_init(m_buffer, m_usedChannelCount);
+    nrf_saadc_event_clear(NRF_SAADC_EVENT_STARTED);
+    nrf_saadc_task_trigger(NRF_SAADC_TASK_START);
 
-        nrf_saadc_task_trigger(NRF_SAADC_TASK_SAMPLE);
+    nrf_saadc_task_trigger(NRF_SAADC_TASK_SAMPLE);
 }
 
 extern "C" void SAADC_IRQHandler(void)
@@ -104,7 +106,10 @@ extern "C" void SAADC_IRQHandler(void)
     {
         g_pThis->m_channels[i].update(g_pThis->m_buffer[i]);
     }
-    g_pThis->startScanning();
+    if (g_pThis->m_sampleContinuously)
+    {
+        g_pThis->startScanning();
+    }
 }
 
 

@@ -38,6 +38,7 @@ class SAADCScanner
 {
     public:
         SAADCScanner(nrf_saadc_resolution_t resolution = NRF_SAADC_RESOLUTION_12BIT,
+                     bool sampleContinuously = true,
                      uint8_t irqPriority = _PRIO_APP_LOWEST);
 
         bool init();
@@ -156,6 +157,7 @@ class SAADCScanner
         nrf_saadc_value_t       m_buffer[NRF_SAADC_CHANNEL_COUNT];
         Channel                 m_channels[NRF_SAADC_CHANNEL_COUNT];
         nrf_saadc_resolution_t  m_resolution;
+        bool                    m_sampleContinuously;
         uint8_t                 m_irqPriority;
 };
 
